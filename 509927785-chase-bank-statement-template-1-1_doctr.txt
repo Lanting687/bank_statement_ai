@@ -1,0 +1,170 @@
+CHASE
+July 1, 2008 through July 31, 2008
+Primary Account: 00000988081483
+JPMorgan Chasel Bankl N.A.
+Ohio/West' Virginia Markets
+PO Box 260180
+Baton Rouge, LA 70826-0180
+CUSTOMER SERVICE INFORMATION
+WebSite:
+www.Chase.com
+Service Center:
+1-800-935-9935
+Hearing Impaired:
+1-800-242-7383
+ulli
+Para Espanol:
+1-877-312-4273
+International Calls:
+1-713-262-1679
+000134221 DDA 001 LA 10205 = YYN T1 00000000 07 0000
+Company Name
+Company Address
+State, Zip
+CHECKING SUMMARY
+INSTANCES
+AMOUNT
+Beginning Balance
+$81,607.40
+Deposits and Additions
+10
+125,883.63
+Checks Paid
+2
+- 3,169.04
+Other Withdrawals, Fees & Charges
+4
+- 15,025.68
+Ending Balance
+16
+$189,296.31
+This message confirms that you have overdraft protection on your checking account.
+DEPOSITS AND ADDITIONS
+DATE
+DESCRIPTION
+AMOUNT
+07/02
+Deposit
+$17,120.00
+07/09
+Deposit
+24,610.00
+07/14
+Deposit
+11,424.00
+07/15
+Deposit
+1,349.00
+07/21
+Deposit
+5,000.00
+07/21
+Deposit
+3,120.00
+07/23
+Deposit
+33,138.00
+07/28
+Deposit
+18,114.00
+07/30
+Deposit
+6,908.63
+07/30
+Deposit
+5,100.00
+Total Deposits and Additions
+$125,883.63
+Page 1 of 4
+Downloaded from http://www.tidyforms.com
+CHASE 0
+July 1, 2008 through July 31, 2008
+Primary Account: 00000988081483
+CHECKS PAID
+DATE
+CHECKI NUMBER
+DESCRIPTION
+PAID
+AMOUNT
+XXXX A
+07/14
+$1,471.99
+XXXX A
+07/08
+1,697.05
+Total Checks Paid
+$3,169.04
+If yous see a description in the Checks Paid section, it means that we received only electronic information about the check,
+not the original or an image of the check. As a result, we're not able to return the check to you or show you an image.
+A An image of this check may be available for you to view on Chase.com.
+OTHER WITHDRAWALS, FEES & CHARGES
+DATE
+DESCRIPTION
+AMOUNT
+07/11
+Online Payment XXXXX To Vendor
+$8,928.00
+07/11
+Online Payment XXXXX To Vendor
+2,960.00
+07/25
+Online Payment XXXXX To Vendor
+250.00
+07/30
+ADP TX/Fincl Svc ADP
+2,887.68
+Total Other Withdrawals, Fees & Charges
+$15,025.68
+DAILY ENDING BALANCE
+DATE
+AMOUNT
+DATE
+AMOUNT
+07/02
+$98,727.40
+07/21
+129,173.36
+07/08
+97,030.35
+07/23
+162,311.36
+07/09
+121,640.35
+07/25
+162,061.36
+07/11
+109,752.35
+07/28
+180,175.36
+07/14
+108,280.36
+07/30
+189,296.31
+07/16
+121,053.36
+SERVICE CHARGE SUMMARY
+NUMBER OF
+TRANSACTIONS FOR SERVICE FEE CALCULATION
+TRANSACTIONS
+Checks Paid / Debits
+3
+Deposits / Credits
+10
+Deposited Items
+21
+Transaction Total
+34
+SERVICE FEE CALCULATION
+AMOUNT
+Service Fee
+$0.00
+Service Fee Credit
+$0.00
+Net Service Fee
+$0.00
+Excessive Transaction Fees (Above 200)
+$0.00
+Total Service Fees
+$0.00
+Page 3 of 4
+Downloaded from http://www.tidyforms.com
