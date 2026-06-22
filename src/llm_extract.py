@@ -1,41 +1,15 @@
-"""Extract structured transactions from bank-statement text using the Claude API."""
+"""Extract structured transactions from bank-statement text using the Gemini API."""
 from __future__ import annotations
 
-import json
 from decimal import Decimal
 
-import anthropic
+from google import genai
+from google.genai import types
+from pydantic import BaseModel
 
 from .parse import Transaction
 
-MODEL = "claude-opus-4-8"
-
-TRANSACTION_SCHEMA = {
-    "type": "object",
-    "properties": {
-        "transactions": {
-            "type": "array",
-            "items": {
-                "type": "object",
-                "properties": {
-                    "date": {"type": "string", "description": "Transaction date, as printed on the statement"},
-                    "description": {"type": "string", "description": "Transaction description/merchant, as printed"},
-                    "amount": {
-                        "type": "string",
-                        "description": (
-                            "Signed decimal amount, e.g. '-15.60' or '2000.00'. "
-                            "Negative for debits/payments/withdrawals, positive for credits/deposits."
-                        ),
-                    },
-                },
-                "required": ["date", "description", "amount"],
-                "additionalProperties": False,
-            },
-        },
-    },
-    "required": ["transactions"],
-    "additionalProperties": False,
-}
+MODEL = "gemini-2.5-flash"
 
 SYSTEM_PROMPT = (
     "You extract transaction line items from OCR'd bank statement text. "
@@ -46,26 +20,42 @@ SYSTEM_PROMPT = (
 )
 
 
-def extract_transactions_llm(text: str, client: anthropic.Anthropic | None = None) -> list[Transaction]:
-    client = client or anthropic.Anthropic()
+# Pydantic models double as the JSON schema Gemini is forced to respond with
+# (passed via response_schema below) and as the parsed-response type.
+class TransactionItem(BaseModel):
+    date: str
+    description: str
+    amount: str  # signed decimal string, e.g. "-15.60" or "2000.00"
 
-    response = client.messages.create(
+
+class ExtractionResult(BaseModel):
+    transactions: list[TransactionItem]
+
+
+def extract_transactions_llm(text: str, client: genai.Client | None = None) -> list[Transaction]:
+    # genai.Client() reads GEMINI_API_KEY / GOOGLE_API_KEY from the environment.
+    client = client or genai.Client()
+
+    response = client.models.generate_content(
         model=MODEL,
-        max_tokens=16000,
-        system=SYSTEM_PROMPT,
-        output_config={"format": {"type": "json_schema", "schema": TRANSACTION_SCHEMA}},
-        messages=[{"role": "user", "content": text}],
+        contents=text,
+        config=types.GenerateContentConfig(
+            system_instruction=SYSTEM_PROMPT,
+            response_mime_type="application/json",
+            response_schema=ExtractionResult,  # forces/validates structured JSON output
+        ),
     )
 
-    raw = next(block.text for block in response.content if block.type == "text")
-    data = json.loads(raw)
+    # SDK auto-parses the JSON response into our Pydantic model.
+    result: ExtractionResult = response.parsed
 
+    # Convert each LLM-extracted item into the shared Transaction dataclass.
     return [
         Transaction(
-            date=item["date"],
-            description=item["description"],
-            amount=Decimal(item["amount"]),
-            raw_line="",
+            date=item.date,
+            description=item.description,
+            amount=Decimal(item.amount),
+            raw_line="",  # no single source line; this came from a full-text LLM pass
         )
-        for item in data["transactions"]
+        for item in result.transactions
     ]

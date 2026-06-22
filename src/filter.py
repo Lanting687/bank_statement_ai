@@ -7,4 +7,5 @@ from .parse import Transaction
 
 
 def filter_payments(transactions: list[Transaction], threshold: Decimal) -> list[Transaction]:
+    # Keep debits only, and only those whose absolute value clears the threshold.
     return [t for t in transactions if t.is_debit and -t.amount >= threshold]

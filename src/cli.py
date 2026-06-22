@@ -4,12 +4,17 @@ from __future__ import annotations
 import argparse
 from decimal import Decimal
 
+from dotenv import load_dotenv
+
 from .export import write_csv, write_json
 from .filter import filter_payments
 from .pipeline import extract_transactions
 
 
 def main() -> None:
+    # Load GEMINI_API_KEY (and any other secrets) from .env into the environment.
+    load_dotenv()
+
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("pdf_path", help="Path to the bank statement PDF")
     parser.add_argument(
@@ -22,7 +27,9 @@ def main() -> None:
     )
     args = parser.parse_args()
 
+    # Full pipeline: docTR OCR -> Gemini structured extraction -> list[Transaction].
     transactions = extract_transactions(args.pdf_path)
+    # Keep only debits whose absolute amount meets the threshold.
     payments = filter_payments(transactions, args.threshold)
 
     write_csv(payments, f"{args.out_prefix}.csv")

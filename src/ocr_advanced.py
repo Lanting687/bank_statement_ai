@@ -16,15 +16,19 @@ MIN_CONFIDENCE = 0.5  # drop words the model isn't confident about
 
 
 def run_ocr(pdf_path: str):
+    # Imported lazily so importing this module doesn't pull in torch/doctr
+    # unless OCR is actually run.
     from doctr.io import DocumentFile
     from doctr.models import ocr_predictor
 
     doc = DocumentFile.from_pdf(pdf_path)
-    model = ocr_predictor(pretrained=True)
-    return model(doc)
+    model = ocr_predictor(pretrained=True)  # detection + recognition pipeline
+    return model(doc)  # a docTR Document: pages -> blocks -> lines -> words
 
 
 def result_to_text(result, min_confidence: float = MIN_CONFIDENCE) -> str:
+    # Flatten the page/block/line/word tree into plain text, one line per
+    # detected text line, dropping any word docTR wasn't confident about.
     lines_out = []
     for page in result.pages:
         for block in page.blocks:
@@ -51,6 +55,7 @@ def result_to_words(result, min_confidence: float = MIN_CONFIDENCE) -> list[list
                 for w in line.words:
                     if w.confidence < min_confidence:
                         continue
+                    # docTR geometry is relative (0-1); scale to pixel coords.
                     (x0, y0), (x1, y1) = w.geometry
                     words.append({
                         "text": w.value,
@@ -85,6 +90,7 @@ def main() -> None:
     base = os.path.splitext(os.path.basename(args.pdf_path))[0]
     out_path = args.out or f"{base}_doctr.txt"
 
+    # Run OCR once; both outputs below are derived from the same result.
     result = run_ocr(args.pdf_path)
 
     text = result_to_text(result, args.min_confidence)
@@ -92,6 +98,7 @@ def main() -> None:
         f.write(text)
     print(f"Wrote {out_path} ({len(text)} chars)")
 
+    # --bbox-json is opt-in: most callers (e.g. the main pipeline) only need text.
     if args.bbox_json is not None:
         bbox_path = args.bbox_json or f"{base}_doctr_words.json"
         pages = result_to_words(result, args.min_confidence)

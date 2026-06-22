@@ -8,6 +8,7 @@ from .parse import Transaction
 
 
 def write_csv(transactions: list[Transaction], path: str) -> None:
+    # date,description,amount rows; amount kept as a string to preserve exact decimals.
     with open(path, "w", newline="") as f:
         writer = csv.writer(f)
         writer.writerow(["date", "description", "amount"])
@@ -16,6 +17,7 @@ def write_csv(transactions: list[Transaction], path: str) -> None:
 
 
 def write_json(transactions: list[Transaction], path: str) -> None:
+    # Same fields as write_csv, as a list of dicts (amount stringified for JSON safety).
     data = [
         {"date": t.date, "description": t.description, "amount": str(t.amount)}
         for t in transactions
