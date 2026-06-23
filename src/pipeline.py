@@ -6,10 +6,16 @@ from .ocr_advanced import result_to_text, run_ocr
 from .parse import Transaction
 
 
-def extract_transactions(pdf_path: str) -> list[Transaction]:
+def extract_statement(pdf_path: str) -> tuple[str, list[Transaction]]:
+    """Returns (currency, transactions) for the given PDF."""
     # 1. OCR the PDF with docTR (handles both scanned and digital PDFs).
     result = run_ocr(pdf_path)
     # 2. Flatten OCR output to plain text in reading order.
     text = result_to_text(result)
-    # 3. Ask Gemini to pull structured transactions out of that text.
+    # 3. Ask Gemini to pull structured transactions + currency out of that text.
     return extract_transactions_llm(text)
+
+
+def extract_transactions(pdf_path: str) -> list[Transaction]:
+    _currency, transactions = extract_statement(pdf_path)
+    return transactions

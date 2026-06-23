@@ -16,7 +16,8 @@ SYSTEM_PROMPT = (
     "Return every individual transaction (not section headers, column headers, "
     "running totals, or summary lines) with its date, description, and signed amount. "
     "Use a negative amount for debits/payments/withdrawals and a positive amount for "
-    "credits/deposits."
+    "credits/deposits. Also report the statement's currency as an ISO 4217 code "
+    "(e.g. GBP, USD, EUR), inferring it from symbols like £/$/€ or any explicit text."
 )
 
 
@@ -29,10 +30,13 @@ class TransactionItem(BaseModel):
 
 
 class ExtractionResult(BaseModel):
+    currency: str  # ISO 4217 guess, e.g. "GBP", "USD"
     transactions: list[TransactionItem]
 
 
-def extract_transactions_llm(text: str, client: genai.Client | None = None) -> list[Transaction]:
+def extract_transactions_llm(
+    text: str, client: genai.Client | None = None,
+) -> tuple[str, list[Transaction]]:
     # genai.Client() reads GEMINI_API_KEY / GOOGLE_API_KEY from the environment.
     client = client or genai.Client()
 
@@ -50,7 +54,7 @@ def extract_transactions_llm(text: str, client: genai.Client | None = None) -> l
     result: ExtractionResult = response.parsed
 
     # Convert each LLM-extracted item into the shared Transaction dataclass.
-    return [
+    transactions = [
         Transaction(
             date=item.date,
             description=item.description,
@@ -59,3 +63,4 @@ def extract_transactions_llm(text: str, client: genai.Client | None = None) -> l
         )
         for item in result.transactions
     ]
+    return result.currency.upper(), transactions
