@@ -17,7 +17,10 @@ SYSTEM_PROMPT = (
     "running totals, or summary lines) with its date, description, and signed amount. "
     "Use a negative amount for debits/payments/withdrawals and a positive amount for "
     "credits/deposits. Also report the statement's currency as an ISO 4217 code "
-    "(e.g. GBP, USD, EUR), inferring it from symbols like £/$/€ or any explicit text."
+    "(e.g. GBP, USD, EUR), inferring it from symbols like £/$/€ or any explicit text. "
+    "For each transaction also resolve its date to ISO 8601 (YYYY-MM-DD) in 'iso_date', "
+    "using the statement's year/period (e.g. from the statement header or surrounding "
+    "context) to fill in any year or partial date that isn't explicit on the line itself."
 )
 
 
@@ -25,6 +28,7 @@ SYSTEM_PROMPT = (
 # (passed via response_schema below) and as the parsed-response type.
 class TransactionItem(BaseModel):
     date: str
+    iso_date: str  # resolved YYYY-MM-DD, for date-range filtering
     description: str
     amount: str  # signed decimal string, e.g. "-15.60" or "2000.00"
 
@@ -57,6 +61,7 @@ def extract_transactions_llm(
     transactions = [
         Transaction(
             date=item.date,
+            iso_date=item.iso_date,
             description=item.description,
             amount=Decimal(item.amount),
             raw_line="",  # no single source line; this came from a full-text LLM pass

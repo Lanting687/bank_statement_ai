@@ -44,6 +44,16 @@ app.layout = dbc.Container(
                         html.Div(id="pending-files-list", className="my-2"),
                         dbc.Label("Minimum payment amount", className="mt-3"),
                         dbc.Input(id="threshold-input", type="number", value=50, min=0),
+                        dbc.Label("Date range", className="mt-3"),
+                        html.Div(
+                            dcc.DatePickerRange(
+                                id="date-range-picker",
+                                start_date=None,
+                                end_date=None,
+                                clearable=True,
+                                display_format="YYYY-MM-DD",
+                            ),
+                        ),
                         dbc.Label("Display currency", className="mt-3"),
                         dcc.Dropdown(
                             id="currency-dropdown",
@@ -83,6 +93,18 @@ app.layout = dbc.Container(
 def _sheet_name(filename: str) -> str:
     name = re.sub(r"[\\/*?:\[\]]", "_", os.path.splitext(filename)[0])
     return name[:31] or "sheet"
+
+
+def _in_date_range(iso_date: str, start_date: str | None, end_date: str | None) -> bool:
+    # ISO 8601 (YYYY-MM-DD) strings compare correctly lexicographically.
+    # If Gemini couldn't resolve a date, don't let it silently exclude the row.
+    if not iso_date or len(iso_date) != 10:
+        return True
+    if start_date and iso_date < start_date:
+        return False
+    if end_date and iso_date > end_date:
+        return False
+    return True
 
 
 @callback(
@@ -129,7 +151,12 @@ def process_uploads(_n_clicks, uploads, processed):
             processed[filename] = {
                 "source_currency": source_currency,
                 "transactions": [
-                    {"date": t.date, "description": t.description, "amount": str(t.amount)}
+                    {
+                        "date": t.date,
+                        "iso_date": t.iso_date,
+                        "description": t.description,
+                        "amount": str(t.amount),
+                    }
                     for t in transactions
                 ],
             }
@@ -148,11 +175,13 @@ def process_uploads(_n_clicks, uploads, processed):
     Input("processed-store", "data"),
     Input("threshold-input", "value"),
     Input("currency-dropdown", "value"),
+    Input("date-range-picker", "start_date"),
+    Input("date-range-picker", "end_date"),
 )
-def compute_display(processed, threshold, target_currency):
-    # Reactive to threshold/currency: re-derives converted amounts and the
-    # auto-selected baseline for every already-extracted file, with no OCR/
-    # Gemini call. This is what makes the filter/currency actually take effect.
+def compute_display(processed, threshold, target_currency, start_date, end_date):
+    # Reactive to threshold/currency/date-range: re-derives converted amounts
+    # and the auto-selected baseline for every already-extracted file, with no
+    # OCR/Gemini call. This is what makes the filters actually take effect.
     threshold = Decimal(str(threshold)) if threshold is not None else Decimal("0")
     display: dict = {}
     selection: dict = {}
@@ -170,18 +199,21 @@ def compute_display(processed, threshold, target_currency):
             warning = warning or fx_warning
             rows.append({
                 "date": t["date"],
+                "iso_date": t.get("iso_date", ""),
                 "description": t["description"],
                 "amount": str(amount),
                 "converted_amount": str(converted_amount),
                 "is_debit": amount < 0,
             })
 
-        # Pre-select every debit that meets the threshold in the display
-        # currency, so the user only has to sense-check / adjust, not build
-        # the selection from scratch.
+        # Pre-select every debit that meets the threshold (in the display
+        # currency) and falls within the chosen date range, so the user only
+        # has to sense-check / adjust, not build the selection from scratch.
         selected = [
             i for i, r in enumerate(rows)
-            if r["is_debit"] and -Decimal(r["converted_amount"]) >= threshold
+            if r["is_debit"]
+            and -Decimal(r["converted_amount"]) >= threshold
+            and _in_date_range(r["iso_date"], start_date, end_date)
         ]
 
         display[filename] = {"display_currency": display_currency, "rows": rows}
