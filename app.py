@@ -218,6 +218,14 @@ def compute_and_render(processed, threshold, target_currency, start_date, end_da
             if abs(float(r["converted_amount"])) >= threshold_f
         ]
 
+        # Tag each row so style_data_conditional can use filter_query instead of
+        # row_index. row_index is page-local on page 2+, causing highlights to
+        # land on the wrong rows; filter_query operates on data values and is
+        # always correct regardless of page.
+        selected_set = set(selected)
+        for i, r in enumerate(rows):
+            r["_sel"] = "1" if i in selected_set else "0"
+
         columns = [
             {"name": "Date", "id": "date"},
             {"name": "Description", "id": "description"},
@@ -231,16 +239,12 @@ def compute_and_render(processed, threshold, target_currency, start_date, end_da
             selected_rows=selected,
             page_size=20,
             style_table={"overflowX": "auto"},
-            # Highlight pre-selected rows in green — works across all browsers
-            # including Safari, which has a known bug where checkboxes set on
-            # initial DataTable render are not visually ticked.
             style_data_conditional=[
                 {
-                    "if": {"row_index": i},
+                    "if": {"filter_query": '{_sel} = "1"'},
                     "backgroundColor": "#d4edda",
                     "fontWeight": "600",
                 }
-                for i in selected
             ],
         )
         tabs.append(dcc.Tab(label=filename, children=[table]))
