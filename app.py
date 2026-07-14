@@ -161,7 +161,7 @@ def process_uploads(_n_clicks, uploads, processed):
                 ],
             }
             log_lines.append(f"✓ {filename}: {len(transactions)} transactions ({source_currency})")
-        except (InvalidOperation, ValueError, OSError, KeyError) as exc:
+        except Exception as exc:
             log_lines.append(f"✗ {filename}: {exc}")
 
     status = html.Ul([html.Li(line) for line in log_lines]) if log_lines else "No new files to process."
@@ -169,6 +169,7 @@ def process_uploads(_n_clicks, uploads, processed):
 
 
 @callback(
+    Output("result-tabs", "children"),
     Output("display-store", "data"),
     Output("selection-store", "data"),
     Output("fx-warning-log", "children"),
@@ -178,11 +179,12 @@ def process_uploads(_n_clicks, uploads, processed):
     Input("date-range-picker", "start_date"),
     Input("date-range-picker", "end_date"),
 )
-def compute_display(processed, threshold, target_currency, start_date, end_date):
-    # Reactive to threshold/currency/date-range: re-derives converted amounts
-    # and the auto-selected baseline for every already-extracted file, with no
-    # OCR/Gemini call. This is what makes the filters actually take effect.
-    threshold = Decimal(str(threshold)) if threshold is not None else Decimal("0")
+def compute_and_render(processed, threshold, target_currency, start_date, end_date):
+    # Single callback: compute rows + selection + build tabs all at once.
+    # selected_rows is passed directly to DataTable without going through
+    # any intermediate store, eliminating every possible timing gap.
+    threshold_f = float(threshold) if threshold is not None else 0.0
+    tabs = []
     display: dict = {}
     selection: dict = {}
     warnings = []
@@ -191,30 +193,57 @@ def compute_display(processed, threshold, target_currency, start_date, end_date)
         source_currency = data["source_currency"]
         display_currency = source_currency if target_currency == "AUTO" else target_currency
 
-        rows = []
+        all_rows = []
         warning = None
+
         for t in data["transactions"]:
             amount = Decimal(t["amount"])
+            if amount >= 0:
+                continue  # show paid-out only
             converted_amount, fx_warning = convert(amount, source_currency, display_currency)
             warning = warning or fx_warning
-            rows.append({
+            all_rows.append({
                 "date": t["date"],
                 "iso_date": t.get("iso_date", ""),
                 "description": t["description"],
-                "amount": str(amount),
                 "converted_amount": str(converted_amount),
-                "is_debit": amount < 0,
             })
 
-        # Pre-select every debit that meets the threshold (in the display
-        # currency) and falls within the chosen date range, so the user only
-        # has to sense-check / adjust, not build the selection from scratch.
+        # Only show rows within the selected date range (all rows shown when picker is blank).
+        rows = [r for r in all_rows if _in_date_range(r["iso_date"], start_date, end_date)]
+
+        # Pre-select rows above threshold; date is already enforced by the row filter above.
         selected = [
             i for i, r in enumerate(rows)
-            if r["is_debit"]
-            and -Decimal(r["converted_amount"]) >= threshold
-            and _in_date_range(r["iso_date"], start_date, end_date)
+            if abs(float(r["converted_amount"])) >= threshold_f
         ]
+
+        columns = [
+            {"name": "Date", "id": "date"},
+            {"name": "Description", "id": "description"},
+            {"name": f"Amount ({display_currency})", "id": "converted_amount"},
+        ]
+        table = dash_table.DataTable(
+            id={"type": "txn-table", "index": filename},
+            columns=columns,
+            data=rows,
+            row_selectable="multi",
+            selected_rows=selected,
+            page_size=20,
+            style_table={"overflowX": "auto"},
+            # Highlight pre-selected rows in green — works across all browsers
+            # including Safari, which has a known bug where checkboxes set on
+            # initial DataTable render are not visually ticked.
+            style_data_conditional=[
+                {
+                    "if": {"row_index": i},
+                    "backgroundColor": "#d4edda",
+                    "fontWeight": "600",
+                }
+                for i in selected
+            ],
+        )
+        tabs.append(dcc.Tab(label=filename, children=[table]))
 
         display[filename] = {"display_currency": display_currency, "rows": rows}
         selection[filename] = selected
@@ -222,34 +251,7 @@ def compute_display(processed, threshold, target_currency, start_date, end_date)
             warnings.append(f"{filename}: {warning}")
 
     warning_children = html.Ul([html.Li(w) for w in warnings]) if warnings else ""
-    return display, selection, warning_children
-
-
-@callback(
-    Output("result-tabs", "children"),
-    Input("display-store", "data"),
-    State("selection-store", "data"),
-)
-def render_tabs(display, selection):
-    tabs = []
-    for filename, data in (display or {}).items():
-        currency = data["display_currency"]
-        columns = [
-            {"name": "Date", "id": "date"},
-            {"name": "Description", "id": "description"},
-            {"name": f"Amount ({currency})", "id": "converted_amount"},
-        ]
-        table = dash_table.DataTable(
-            id={"type": "txn-table", "index": filename},
-            columns=columns,
-            data=data["rows"],
-            row_selectable="multi",
-            selected_rows=(selection or {}).get(filename, []),
-            page_size=20,
-            style_table={"overflowX": "auto"},
-        )
-        tabs.append(dcc.Tab(label=filename, children=[table]))
-    return tabs
+    return tabs, display, selection, warning_children
 
 
 @callback(
@@ -259,13 +261,11 @@ def render_tabs(display, selection):
     prevent_initial_call=True,
 )
 def sync_selection(_all_selected_rows, selection):
-    # Tracks manual checkbox edits only -- does not feed back into
-    # display-store/render_tabs, so clicking a checkbox never triggers a
-    # full table rebuild.
     selection = dict(selection or {})
     for entry in ctx.inputs_list[0]:
         filename = entry["id"]["index"]
-        selection[filename] = entry.get("value") or []
+        value = entry.get("value") or []
+        selection[filename] = value
     return selection
 
 
