@@ -12,6 +12,7 @@ A human-in-the-loop Bank statement AI analysis tool that extracts bank statement
 
 ## Application Preview
 ![Bank Statement AI interface](docs/images/bank_statement_ai_ui.png)
+The interface brings the entire review workflow into one place — upload bank statements, automatically extract transactions, review AI-selected items, apply professional adjudgement, and export the final sample to Excel.
 
 ## Pain Point
 
