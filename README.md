@@ -11,7 +11,7 @@ A human-in-the-loop Bank statement AI analysis tool that extracts bank statement
 ![Status](https://img.shields.io/badge/Status-Prototype-orange)
 
 ## Application Preview
-![Bank Statement AI interface](docs/images/bank-statement-ai-ui.png)
+![Bank Statement AI interface](docs/images/bank_statement_ai_ui.png)
 
 ## Pain Point
 
