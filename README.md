@@ -24,8 +24,7 @@ A local version can be run by following the instructions in the
 ## Pain Point
 
 - One company. Multiple bank accounts. Differnt currencies. Hundreds of pages of transactions. 
-- For Unrecorded Liabilities testing, auditors may need to go through every statement, find debit transactions one by one, convert the amount and decide which payments are large enough to test.
--The more account and currencies a company has, the easier there are human error.
+- For Unrecorded Liabilities testing, auditors may need to go through every statement, find debit transactions one by one, convert the amount and decide which payments are large enough to test. The more account and currencies a company has, the easier there are human error.
 - That is the problem this tool address: less manual review time, less human error, more consistent results.
 
 
