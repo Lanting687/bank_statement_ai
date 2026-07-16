@@ -10,16 +10,8 @@ A human-in-the-loop Bank statement AI analysis tool that extracts bank statement
 ![Excel](https://img.shields.io/badge/Export-Excel-217346)
 ![Status](https://img.shields.io/badge/Status-Prototype-orange)
 
-## Live Demo
-
-Live deployment is not currently available.
-
-A local version can be run by following the instructions in the
-[Running Locally](#running-locally) section.
-
-<!-- Replace this with your own application screenshot -->
-
-![Bank Statement AI Interface](docs/images/app-preview.png)
+## Application Preview
+![Bank Statement AI interface](docs/images/bank-statement-ai-ui.png)
 
 ## Pain Point
 
