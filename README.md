@@ -1,6 +1,6 @@
 # Bank Statement AI
 
-An AI-powered bank statement processing tool that extracts transactions from PDF statements, allows users to review and sense-check debit transactions in an interactive web interface, and exports selected rows to Excel.
+A human-in-the-loop Bank statement AI analysis too that extracts bank statement PDFs with different layout and formats and turn them into standardised and structurued data for easier analysis and comparision. 
 
 ![Python](https://img.shields.io/badge/Python-3.11-blue)
 ![Dash](https://img.shields.io/badge/Dash-Web%20UI-008DE5)
