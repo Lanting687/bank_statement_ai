@@ -25,12 +25,12 @@ The interface brings the entire review workflow into one place — upload bank s
 
 | Layer | Technology | Purpose |
 |---|---|---|
-| Web Interface | Dash | Upload, filter, and transaction review UI |
-| OCR | docTR | Renders each PDF page into a pixel image, then runs two neural networks — Detection (draws boxes around text regions) and Recognition (reads what the text says inside each box) |
-| LLM | Gemini 2.5 Flash | Structured transaction extraction from OCR text |
-| Validation | Pydantic | Enforces JSON output schema from Gemini |
-| FX Conversion | Frankfurter API | Live exchange rates for multi-currency conversion |
-| Export | pandas + openpyxl | Multi-sheet Excel workbook generation |
+| Web Interface | Dash | The browser UI — upload PDFs, set filters, review and download results |
+| OCR | docTR | Reads text from the PDF, like a human scanning a printed page |
+| AI Extraction | Gemini 2.5 Flash | Understands the text and picks out each transaction (date, amount, merchant) |
+| Data Validation | Pydantic | Ensures Gemini always returns data in the exact format the app expects |
+| Currency Conversion | Frankfurter API | Converts amounts to your chosen currency using live exchange rates |
+| Export | pandas + openpyxl | Saves the selected transactions into an Excel file |
 
 ## How It Works
 
@@ -39,26 +39,36 @@ Bank Statement PDF
         │
         ▼
 docTR OCR
-        │
-        │  Extracts text from scanned or digital PDFs
+        │  1. Renders each page into a pixel image
+        │  2. Detection network — draws boxes around text regions
+        │  3. Recognition network — reads text inside each box
+        │  4. Drops low-confidence words
         ▼
-Plain Text
+Plain Text (newline-separated, one line per text line)
         │
         ▼
 Gemini 2.5 Flash
-        │
+        │  Reads the plain text via system prompt instructions
+        │  Ignores headers, totals, and summary lines
         │  Returns validated structured JSON
         ▼
-Transactions
-        │
-        ├── date
-        ├── description
-        ├── signed amount
-        └── currency
-        │
-        ▼
-Dash Web UI / CLI
+Structured Transactions
+        │  ├── date        e.g. "06 Nov 19"
+        │  ├── iso_date    e.g. "2019-11-06"
+        │  ├── description e.g. "TESCO STORES"
+        │  ├── amount      e.g. "-62.40" (negative = debit)
+        │  └── currency    e.g. "GBP"
         │
         ▼
-Excel / CSV / JSON
+Filter & Display (Dash Web UI)
+        │  Keeps debits only
+        │  Filters by date range
+        │  Pre-selects rows above threshold
+        ▼
+User Sense-Check (tick / untick rows)
+        │
+        ▼
+Export
+        ├── Excel (.xlsx) — Web UI, checked rows only, one sheet per PDF
+        └── CSV + JSON    — CLI, debits above threshold
 ```

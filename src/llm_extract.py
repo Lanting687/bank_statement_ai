@@ -73,7 +73,12 @@ These Pydantic classes do two jobs in this file:
            JSON reply into a typed Python object — no manual json.loads() needed.
 """
 class TransactionItem(BaseModel):
-    """One transaction returned by Gemini — maps directly to the Transaction dataclass in parse.py."""
+    """
+    A class (not a function) — it defines the shape of one transaction, not performs an action.
+    Think of it as a blank form: it says what fields exist, but contains no real data until
+    Gemini fills it in. One TransactionItem is created per transaction Gemini finds.
+    Maps directly to the Transaction dataclass in parse.py.
+    """
     date: str         # date as printed on the statement e.g. "01 Nov 19"
     iso_date: str     # resolved full date e.g. "2019-11-01", used for date-range filtering
     description: str  # merchant name e.g. "TESCO STORES"
@@ -81,9 +86,15 @@ class TransactionItem(BaseModel):
 
 
 class ExtractionResult(BaseModel):
-    """Top-level response from Gemini — contains the currency and all extracted transactions."""
-    currency: str                      # ISO 4217 currency code e.g. "GBP", "USD"
-    transactions: list[TransactionItem]  # list of all transactions Gemini found
+    """
+    The whole bank statement response from Gemini — one per statement.
+    We need two separate classes because they represent different levels:
+      ExtractionResult = statement-level (currency applies to the whole statement)
+      TransactionItem  = transaction-level (date/description/amount applies to one transaction only)
+    Merging them into one class would only allow storing one transaction, losing all others.
+    """
+    currency: str                        # ISO 4217 currency code e.g. "GBP", "USD" — applies to whole statement
+    transactions: list[TransactionItem]  # all transactions Gemini found in the statement
 
 
 def extract_transactions_llm(
