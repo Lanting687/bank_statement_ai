@@ -1,4 +1,13 @@
-"""Transaction record shared by extraction, filtering, and export."""
+"""
+Transaction dataclass — the shared data structure used by every file in the project.
+
+Defined here once so every file uses the same structure instead of their own format.
+You can tell which structure each file uses by reading its type hints:
+  llm_extract.py  -> tuple[str, list[Transaction]]  (tuple: always returns currency + transactions together)
+  pipeline.py     -> tuple[str, list[Transaction]]  (tuple: always returns currency + transactions together)
+  filter.py       -> list[Transaction]              (list: number of transactions varies after filtering)
+  export.py       -> list[Transaction]              (list: number of transactions to write varies)
+"""
 from __future__ import annotations
 
 from dataclasses import dataclass

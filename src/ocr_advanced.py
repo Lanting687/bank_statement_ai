@@ -45,15 +45,19 @@ def run_ocr(pdf_path: str):
 
     """
     Run both networks on the page images and return the result tree
-    (Document -> pages -> blocks -> lines -> words) back to pipeline.py.
+    (Document -> pages -> blocks -> lines -> words) back to pipeline.py,
+    where it is stored as 'result = run_ocr(pdf_path)' before being
+    passed to result_to_text() to flatten into plain text.
     """
     return model(doc)
 
 
 def result_to_text(result, min_confidence: float = MIN_CONFIDENCE) -> str:
     """
-    Receives the Document tree from pipeline.py, flattens it into a plain text string
-    (one line per text line, low-confidence words dropped), and returns it to Gemini.
+    Receives the Document tree from run_ocr(), flattens it into a plain text string
+    (one line per text line, low-confidence words dropped), and returns it.
+    The returned string is stored as 'text' in pipeline.py (text = result_to_text(result))
+    and then passed to llm_extract.py as the 'text' parameter for Gemini to read.
     -> str means this function always returns a string.
     """
     lines_out = []
@@ -66,6 +70,8 @@ def result_to_text(result, min_confidence: float = MIN_CONFIDENCE) -> str:
     """
     \n is a newline — puts each transaction on its own line so Gemini can
     tell where one transaction ends and the next begins.
+    The resulting plain text string is passed to pipeline.py, which hands
+    it to llm_extract.py as the 'text' parameter for Gemini to read.
     """
     return "\n".join(lines_out)
 
