@@ -1,6 +1,6 @@
 # Bank Statement AI
 
-A human-in-the-loop Bank statement AI analysis tool that extracts bank statement PDFs with different layout and formats and turns them into standardised and structurued data for easier analysis and comparision. 
+A human-in-the-loop Bank Statement AI Analysis Tool that extracts bank statement PDFs with different layout and formats and turns them into standardised and structurued data for easier analysis and comparision. 
 
 ![Python](https://img.shields.io/badge/Python-3.11-blue)
 ![Dash](https://img.shields.io/badge/Dash-Web%20UI-008DE5)
