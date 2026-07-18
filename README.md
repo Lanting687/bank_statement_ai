@@ -24,13 +24,14 @@ The interface brings the entire review workflow into one place — upload bank s
 ## Key Features
 
 - **Multi-PDF upload** — drag and drop one or multiple bank statements at once
-- **AI-powered extraction** — automatically reads transactions from any PDF layout using OCR and Gemini
+- **AI-powered extraction** — automatically reads transactions from different PDF layouts using OCR and Gemini
 - **Debits only** — filters out credits so you only review payments out
 - **Smart pre-selection** — rows above your minimum amount threshold are automatically ticked, so you only sense-check rather than select from scratch
 - **Date range filter** — narrow the visible transactions to a specific period
 - **Multi-currency support** — convert all amounts to a single currency using live exchange rates
 - **Human-in-the-loop** — you stay in control; tick or untick any row before exporting
 - **Excel export** — download selected transactions as a single `.xlsx` file, one sheet per statement
+
 
 ## Tech Stack
 
@@ -42,6 +43,7 @@ The interface brings the entire review workflow into one place — upload bank s
 | Data Validation | Pydantic | Ensures Gemini always returns data in the exact format the app expects |
 | Currency Conversion | Frankfurter API | Converts amounts to your chosen currency using live exchange rates |
 | Export | pandas + openpyxl | Saves the selected transactions into an Excel file |
+
 
 ## How It Works
 
