@@ -1,6 +1,6 @@
 # Bank Statement AI
 
-A human-in-the-loop Bank statement AI analysis tool that extracts bank statement PDFs with different layout and formats and turn them into standardised and structurued data for easier analysis and comparision. 
+A human-in-the-loop Bank statement AI analysis tool that extracts bank statement PDFs with different layout and formats and turns them into standardised and structurued data for easier analysis and comparision. 
 
 ![Python](https://img.shields.io/badge/Python-3.11-blue)
 ![Dash](https://img.shields.io/badge/Dash-Web%20UI-008DE5)
@@ -26,7 +26,7 @@ The interface brings the entire review workflow into one place — upload bank s
 | Layer | Technology | Purpose |
 |---|---|---|
 | Web Interface | Dash | Upload, filter, and transaction review UI |
-| OCR | docTR | Text extraction from scanned and digital PDFs |
+| OCR | docTR | Renders each PDF page into a pixel image, then runs two neural networks — Detection (draws boxes around text regions) and Recognition (reads what the text says inside each box) |
 | LLM | Gemini 2.5 Flash | Structured transaction extraction from OCR text |
 | Validation | Pydantic | Enforces JSON output schema from Gemini |
 | FX Conversion | Frankfurter API | Live exchange rates for multi-currency conversion |
@@ -62,4 +62,7 @@ Dash Web UI / CLI
         ▼
 Excel / CSV / JSON
 ```
+
+
+
 

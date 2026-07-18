@@ -1,4 +1,14 @@
-"""Extract structured transactions from bank-statement text using the Gemini API."""
+"""
+Extract structured transactions from bank-statement text using the Gemini API.
+
+This module receives plain text from ocr_advanced.py, which has already:
+  1. Rendered each PDF page into a pixel image
+  2. Read every word using two neural networks (detection + recognition)
+  3. Dropped low-confidence words to reduce OCR noise
+
+Gemini then reads that clean plain text and extracts structured transactions
+(date, description, signed amount, currency) ready for filtering and display.
+"""
 from __future__ import annotations
 
 from decimal import Decimal
