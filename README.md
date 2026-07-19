@@ -27,7 +27,7 @@
 - That is the problem this tool addresses: less manual review time, fewer human errors, more consistent results.
 
 
-## Key Features
+## ✨ Key Features
 
 - **Multi-PDF upload** — drag and drop one or more bank statements at once
 - **AI-powered extraction** — automatically reads transactions from different PDF layouts using OCR and Gemini
@@ -89,7 +89,7 @@ User Sense-Check (tick / untick rows)
 Export (.xlsx) — checked rows only, one sheet per PDF
 ```
 
-## Getting Started
+## 🚀 Getting Started
 
 ### 1. Clone the repository
 
