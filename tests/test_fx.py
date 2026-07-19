@@ -28,3 +28,10 @@ def test_convert_falls_back_to_1to1_on_failure(monkeypatch):
     amount, warning = fx.convert(Decimal("100"), "GBP", "USD")
     assert amount == Decimal("100")
     assert warning is not None
+
+
+def test_convert_preserves_sign_on_negative_amounts(monkeypatch):
+    monkeypatch.setattr(fx, "get_rate", lambda *_: Decimal("1.25"))
+    amount, warning = fx.convert(Decimal("-100"), "GBP", "USD")
+    assert amount == Decimal("-125.00")
+    assert warning is None

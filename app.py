@@ -13,6 +13,7 @@ import pandas as pd
 from dash import ALL, Dash, Input, Output, State, callback, ctx, dash_table, dcc, html
 from dotenv import load_dotenv
 
+from src.filter import in_date_range
 from src.fx import convert
 from src.pipeline import extract_statement
 
@@ -94,17 +95,6 @@ def _sheet_name(filename: str) -> str:
     name = re.sub(r"[\\/*?:\[\]]", "_", os.path.splitext(filename)[0])
     return name[:31] or "sheet"
 
-
-def _in_date_range(iso_date: str, start_date: str | None, end_date: str | None) -> bool:
-    # ISO 8601 (YYYY-MM-DD) strings compare correctly lexicographically.
-    # If Gemini couldn't resolve a date, don't let it silently exclude the row.
-    if not iso_date or len(iso_date) != 10:
-        return True
-    if start_date and iso_date < start_date:
-        return False
-    if end_date and iso_date > end_date:
-        return False
-    return True
 
 
 @callback(
@@ -210,7 +200,7 @@ def compute_and_render(processed, threshold, target_currency, start_date, end_da
             })
 
         # Only show rows within the selected date range (all rows shown when picker is blank).
-        rows = [r for r in all_rows if _in_date_range(r["iso_date"], start_date, end_date)]
+        rows = [r for r in all_rows if in_date_range(r["iso_date"], start_date, end_date)]
 
         # Pre-select rows above threshold; date is already enforced by the row filter above.
         selected = [
