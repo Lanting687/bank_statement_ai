@@ -15,7 +15,7 @@
 ![Status](https://img.shields.io/badge/Status-Prototype-orange)
 ![Tests](https://img.shields.io/badge/Tests-19%20passed-brightgreen)
 
-[Demo](#demo) · [Pain Point](#pain-point) · [Key Features](#key-features) · [How It Works](#how-it-works) · [Getting Started](#getting-started) · [Testing](#testing) · [Disclaimer](#responsible-use-and-disclaimer)
+[Demo](#demo) · [Pain Point](#pain-point) · [Key Features](#key-features) · [How It Works](#how-it-works) · [Getting Started](#getting-started) · [Testing](#testing) · [Disclaimer](#disclaimer)
 
 </div>
 
@@ -154,7 +154,7 @@ pytest tests/ -q
 Covers debit filtering, date range logic, currency conversion, and edge cases. No network calls or API keys are required.
 
 
-## ⚠️ Responsible Use and Disclaimer
+## ⚠️ Disclaimer
 
 This is a portfolio prototype. AI-generated results must be reviewed and approved by the user before export.
 
