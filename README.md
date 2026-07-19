@@ -137,19 +137,11 @@ Open [http://127.0.0.1:8050](http://127.0.0.1:8050) in your browser.
 
 ## Testing
 
-Run the full test suite with:
-
 ```bash
 pytest tests/ -q
 ```
 
-| Test file | What it covers |
-|---|---|
-| `tests/test_filter.py` | Debit filtering by threshold, date range inclusion/exclusion, boundary and edge cases |
-| `tests/test_parse.py` | `Transaction.is_debit` — negative, positive, and zero amounts |
-| `tests/test_fx.py` | Currency conversion, same-currency short-circuit, network failure fallback, negative amounts |
-
-No network calls or API keys are required to run the tests.
+Covers debit filtering, date range logic, currency conversion, and edge cases. No API key required.
 
 
 ## Responsible Use and Disclaimer
