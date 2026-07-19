@@ -1,6 +1,6 @@
 # Bank Statement AI
 
-A human-in-the-loop bank statement analysis tool that reads PDFs with different layouts and formats and turns them into standardised, structured data for easier analysis and comparison.
+A human-in-the-loop bank statement analysis tool that extracts PDFs with different layouts and formats and turns them into standardised, structured data for easier analysis and comparison.
 
 ![Python](https://img.shields.io/badge/Python-3.11-blue)
 ![Dash](https://img.shields.io/badge/Dash-Web%20UI-008DE5)
@@ -39,7 +39,7 @@ A human-in-the-loop bank statement analysis tool that reads PDFs with different 
 |---|---|---|
 | Web Interface | Dash | The browser UI — upload PDFs, set filters, review and download results |
 | OCR | docTR | Reads text from each PDF page |
-| AI Extraction | Gemini 2.5 Flash | Understands the text and picks out each transaction (date, amount, merchant) |
+| AI Extraction | Gemini 2.5 Flash | Understands the text and picks out each transaction (date, amount, description, currency) |
 | Data Validation | Pydantic | Ensures Gemini always returns data in the exact format the app expects |
 | Currency Conversion | Frankfurter API | Converts amounts to your chosen currency using live exchange rates |
 | Export | pandas + openpyxl | Saves the selected transactions into an Excel file |
@@ -130,6 +130,6 @@ Open [http://127.0.0.1:8050](http://127.0.0.1:8050) in your browser.
 
 ## Responsible Use and Disclaimer
 
-This is a portfolio prototype.  AI-generated results must be reviewed and approved by the user before export.
+This is a portfolio prototype. AI-generated results must be reviewed and approved by the user before export.
 
 PDF processing sends extracted transaction data to the Google Gemini API. Users should check their organisation’s data privacy and confidentiality requirements before using real bank statements.
