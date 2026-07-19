@@ -39,7 +39,7 @@
 - **Excel export** — download selected transactions as a single `.xlsx` file, one sheet per statement
 
 
-## Tech Stack
+## 🧰 Tech Stack
 
 | Layer | Technology | Purpose |
 |---|---|---|
@@ -51,7 +51,7 @@
 | Export | pandas + openpyxl | Saves the selected transactions into an Excel file |
 
 
-## How It Works
+## ⚙️ How It Works
 
 ```text
 Bank Statement PDF
@@ -140,7 +140,7 @@ Open [http://127.0.0.1:8050](http://127.0.0.1:8050) in your browser.
 6. Click **Download Excel** to export the selected rows
 
 
-## Testing
+## 🧪 Testing
 
 ```bash
 pytest tests/ -q
@@ -149,7 +149,7 @@ pytest tests/ -q
 Covers debit filtering, date range logic, currency conversion, and edge cases. No network calls or API keys are required.
 
 
-## Responsible Use and Disclaimer
+## ⚠️ Responsible Use and Disclaimer
 
 This is a portfolio prototype. AI-generated results must be reviewed and approved by the user before export.
 
