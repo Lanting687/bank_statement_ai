@@ -135,6 +135,23 @@ Open [http://127.0.0.1:8050](http://127.0.0.1:8050) in your browser.
 6. Click **Download Excel** to export the selected rows
 
 
+## Testing
+
+Run the full test suite with:
+
+```bash
+pytest tests/ -q
+```
+
+| Test file | What it covers |
+|---|---|
+| `tests/test_filter.py` | Debit filtering by threshold, date range inclusion/exclusion, boundary and edge cases |
+| `tests/test_parse.py` | `Transaction.is_debit` — negative, positive, and zero amounts |
+| `tests/test_fx.py` | Currency conversion, same-currency short-circuit, network failure fallback, negative amounts |
+
+No network calls or API keys are required to run the tests.
+
+
 ## Responsible Use and Disclaimer
 
 This is a portfolio prototype. AI-generated results must be reviewed and approved by the user before export.
