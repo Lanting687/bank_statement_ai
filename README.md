@@ -1,7 +1,5 @@
 <div align="center">
 
-![Bank Statement AI interface](docs/images/bank_statement_ai_ui.png)
-
 # Bank Statement AI
 
 **A human-in-the-loop bank statement analysis tool that extracts PDFs with different layouts and formats and turns them into standardised, structured data for easier analysis and comparison.**
