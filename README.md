@@ -2,9 +2,11 @@
 
 ![Bank Statement AI interface](docs/images/bank_statement_ai_ui.png)
 
+*Upload PDFs · Review AI-extracted transactions · Export to Excel*
+
 # Bank Statement AI
 
-**A human-in-the-loop bank statement analysis tool that extracts PDFs with different layouts and formats and turns them into standardised, structured data for easier analysis and comparison.**
+**A human-in-the-loop tool that extract bank statements with different layouts and turns them into standardised and structured data for easier analysis and comparison.**
 
 ![Python](https://img.shields.io/badge/Python-3.11-blue)
 ![Dash](https://img.shields.io/badge/Dash-Web%20UI-008DE5)
