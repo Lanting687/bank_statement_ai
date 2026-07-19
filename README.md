@@ -1,6 +1,10 @@
+<div align="center">
+
+![Bank Statement AI interface](docs/images/bank_statement_ai_ui.png)
+
 # Bank Statement AI
 
-A human-in-the-loop bank statement analysis tool that extracts PDFs with different layouts and formats and turns them into standardised, structured data for easier analysis and comparison.
+**A human-in-the-loop bank statement analysis tool that extracts PDFs with different layouts and formats and turns them into standardised, structured data for easier analysis and comparison.**
 
 ![Python](https://img.shields.io/badge/Python-3.11-blue)
 ![Dash](https://img.shields.io/badge/Dash-Web%20UI-008DE5)
@@ -11,8 +15,9 @@ A human-in-the-loop bank statement analysis tool that extracts PDFs with differe
 ![Status](https://img.shields.io/badge/Status-Prototype-orange)
 ![Tests](https://img.shields.io/badge/Tests-19%20passed-brightgreen)
 
-## Application Preview
-![Bank Statement AI interface](docs/images/bank_statement_ai_ui.png)
+[Pain Point](#pain-point) · [Key Features](#key-features) · [How It Works](#how-it-works) · [Getting Started](#getting-started) · [Testing](#testing) · [Disclaimer](#responsible-use-and-disclaimer)
+
+</div>
 
 
 ## Pain Point
@@ -109,7 +114,6 @@ pytest tests/ -q
 
 ### 4. Get a Gemini API key
 
-
 1. Go to [Google AI Studio](https://aistudio.google.com/app/apikey)
 2. Click **Create API key**
 3. Create a `.env` file in the project root and add your key:
@@ -149,4 +153,4 @@ Covers debit filtering, date range logic, currency conversion, and edge cases. N
 
 This is a portfolio prototype. AI-generated results must be reviewed and approved by the user before export.
 
-PDF processing sends extracted transaction data to the Google Gemini API. Users should check their organisation’s data privacy and confidentiality requirements before using real bank statements.
+PDF processing sends extracted transaction data to the Google Gemini API. Users should check their organisation's data privacy and confidentiality requirements before using real bank statements.
