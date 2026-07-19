@@ -20,6 +20,11 @@
 </div>
 
 
+## 🖥️ Application Preview
+
+![Bank Statement AI interface](docs/images/bank_statement_ai_ui.png)
+
+
 ## 🎯 Pain Point
 
 - One company. Multiple bank accounts. Different currencies. Hundreds of pages of transactions. 
