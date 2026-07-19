@@ -9,6 +9,7 @@ A human-in-the-loop bank statement analysis tool that extracts PDFs with differe
 ![Pydantic](https://img.shields.io/badge/Pydantic-Structured%20Output-E92063)
 ![Excel](https://img.shields.io/badge/Export-Excel-217346)
 ![Status](https://img.shields.io/badge/Status-Prototype-orange)
+![Tests](https://img.shields.io/badge/Tests-19%20passed-brightgreen)
 
 ## Application Preview
 ![Bank Statement AI interface](docs/images/bank_statement_ai_ui.png)
