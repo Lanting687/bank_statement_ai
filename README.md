@@ -17,13 +17,13 @@ A human-in-the-loop bank statement analysis tool that reads PDFs with different 
 ## Pain Point
 
 - One company. Multiple bank accounts. Different currencies. Hundreds of pages of transactions. 
-- For Unrecorded Liabilities testing, auditors may need to go through every statement, find debit transactions one by one, convert the amount and decide which payments are large enough to test. The more accounts, currencies and transactions are involved, the easier it is to miss an item, use the wrong exchange rate, or select payments inconsistently.
+- For Unrecorded Liabilities testing, auditors may need to go through every statement, find debit transactions one by one, convert amounts and decide which payments are large enough to test. The more accounts, currencies and transactions are involved, the easier it is to miss an item, use the wrong exchange rate, or select payments inconsistently.
 - That is the problem this tool addresses: less manual review time, fewer human errors, more consistent results.
 
 
 ## Key Features
 
-- **Multi-PDF upload** — drag and drop one or multiple bank statements at once
+- **Multi-PDF upload** — drag and drop one or more bank statements at once
 - **AI-powered extraction** — automatically reads transactions from different PDF layouts using OCR and Gemini
 - **Debits only** — filters out credits so you only review payments out
 - **Smart pre-selection** — rows above your minimum amount threshold are automatically ticked, so you only sense-check rather than select from scratch
@@ -38,7 +38,7 @@ A human-in-the-loop bank statement analysis tool that reads PDFs with different 
 | Layer | Technology | Purpose |
 |---|---|---|
 | Web Interface | Dash | The browser UI — upload PDFs, set filters, review and download results |
-| OCR | docTR | Reads text from the PDF, like a human scanning a printed page |
+| OCR | docTR | Reads text from each PDF page |
 | AI Extraction | Gemini 2.5 Flash | Understands the text and picks out each transaction (date, amount, merchant) |
 | Data Validation | Pydantic | Ensures Gemini always returns data in the exact format the app expects |
 | Currency Conversion | Frankfurter API | Converts amounts to your chosen currency using live exchange rates |
