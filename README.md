@@ -2,8 +2,6 @@
 
 ![Bank Statement AI interface](docs/images/bank_statement_ai_ui.png)
 
-*Upload PDFs · Review AI-extracted transactions · Export to Excel*
-
 # Bank Statement AI
 
 **A human-in-the-loop tool that extract bank statements with different layouts and turns them into standardised and structured data for easier analysis and comparison.**
