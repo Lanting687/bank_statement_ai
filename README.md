@@ -100,7 +100,14 @@ source .venv/bin/activate        # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-### 3. Get a Gemini API key
+### 3. Verify the setup
+
+```bash
+pytest tests/ -q
+```
+
+### 4. Get a Gemini API key
+
 
 1. Go to [Google AI Studio](https://aistudio.google.com/app/apikey)
 2. Click **Create API key**
@@ -110,7 +117,7 @@ pip install -r requirements.txt
 GEMINI_API_KEY=your_key_here
 ```
 
-### 4. Run the app
+### 5. Run the app
 
 ```bash
 python app.py
@@ -118,7 +125,7 @@ python app.py
 
 Open [http://127.0.0.1:8050](http://127.0.0.1:8050) in your browser.
 
-### 5. Use the app
+### 6. Use the app
 
 1. Drag and drop one or more bank statement PDFs into the upload zone (sample statements are available in the `samples/` folder)
 2. Set your **minimum payment amount** (rows above this will be pre-ticked)
