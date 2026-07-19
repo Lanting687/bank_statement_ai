@@ -120,7 +120,7 @@ Open [http://127.0.0.1:8050](http://127.0.0.1:8050) in your browser.
 
 ### 5. Use the app
 
-1. Drag and drop one or more bank statement PDFs into the upload zone
+1. Drag and drop one or more bank statement PDFs into the upload zone (sample statements are available in the `samples/` folder)
 2. Set your **minimum payment amount** (rows above this will be pre-ticked)
 3. Optionally set a **date range** and **display currency**
 4. Click **Process** — the app runs OCR and Gemini extraction
