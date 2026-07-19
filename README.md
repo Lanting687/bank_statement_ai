@@ -12,7 +12,7 @@ A human-in-the-loop bank statement analysis tool that reads PDFs with different 
 
 ## Application Preview
 ![Bank Statement AI interface](docs/images/bank_statement_ai_ui.png)
-The interface brings the entire review workflow into one place — upload bank statements, automatically extract transactions, review AI-selected items, apply professional judgement, and export the final sample to Excel.
+
 
 ## Pain Point
 
@@ -67,7 +67,6 @@ Gemini 2.5 Flash
         ▼
 Structured Transactions
         │  ├── date        e.g. "06 Nov 19"
-        │  ├── iso_date    e.g. "2019-11-06"
         │  ├── description e.g. "TESCO STORES"
         │  ├── amount      e.g. "-62.40" (negative = debit)
         │  └── currency    e.g. "GBP"
@@ -81,9 +80,7 @@ Filter & Display (Dash Web UI)
 User Sense-Check (tick / untick rows)
         │
         ▼
-Export
-        ├── Excel (.xlsx) — Web UI, checked rows only, one sheet per PDF
-        └── CSV + JSON    — CLI, debits above threshold
+Export (.xlsx) — checked rows only, one sheet per PDF
 ```
 
 ## Getting Started
