@@ -1,7 +1,5 @@
 <div align="center">
 
-## 🖥️ Application Preview
-
 ![Bank Statement AI interface](docs/images/bank_statement_ai_ui.png)
 
 # Bank Statement AI
