@@ -130,10 +130,6 @@ Open [http://127.0.0.1:8050](http://127.0.0.1:8050) in your browser.
 
 ## Responsible Use and Disclaimer
 
-**Prototype use only.** This tool is a prototype and has not been validated for production or regulated audit use. Results should be independently reviewed and verified before being relied upon in any professional context.
+This is a portfolio prototype.  AI-generated results must be reviewed and approved by the user before export.
 
-**Human oversight.** The tool uses AI to extract and pre-select transactions, but all final decisions remain with the user. AI output is a starting point for review, not a conclusion. No transactions are exported without explicit human approval.
-
-**Data privacy.** Processing a PDF sends OCR-extracted text, including transaction dates, amounts and merchant descriptions, to the Google Gemini API. Data is transmitted to Google’s servers and handled in accordance with Google’s applicable terms and data policies. Users are responsible for confirming that this is permitted under their organisation’s data governance, confidentiality and client-data policies before processing real bank statements.
-
-**No liability.** The authors accept no liability for decisions made or actions taken based on the output of this tool.
+PDF processing sends extracted transaction data to the Google Gemini API. Users should check their organisation’s data privacy and confidentiality requirements before using real bank statements.
