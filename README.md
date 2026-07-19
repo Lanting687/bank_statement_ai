@@ -126,3 +126,14 @@ Open [http://127.0.0.1:8050](http://127.0.0.1:8050) in your browser.
 4. Click **Process** — the app runs OCR and Gemini extraction
 5. Review the pre-selected transactions in the right panel — tick or untick as needed
 6. Click **Download Excel** to export the selected rows
+
+
+## Responsible Use and Disclaimer
+
+**Prototype use only.** This tool is a prototype and has not been validated for production or regulated audit use. Results should be independently reviewed and verified before being relied upon in any professional context.
+
+**Human oversight.** The tool uses AI to extract and pre-select transactions, but all final decisions remain with the user. AI output is a starting point for review, not a conclusion. No transactions are exported without explicit human approval.
+
+**Data privacy.** Processing a PDF sends OCR-extracted text, including transaction dates, amounts and merchant descriptions, to the Google Gemini API. Data is transmitted to Google’s servers and handled in accordance with Google’s applicable terms and data policies. Users are responsible for confirming that this is permitted under their organisation’s data governance, confidentiality and client-data policies before processing real bank statements.
+
+**No liability.** The authors accept no liability for decisions made or actions taken based on the output of this tool.
