@@ -24,6 +24,8 @@
 
 ![Demo](docs/demo.gif)
 
+[Watch the full Bank Statement AI demo](docs/videos/bank_statement_ai_demo.mp4)
+
 
 ## 🎯 Pain Point
 
