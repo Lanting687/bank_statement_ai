@@ -24,7 +24,7 @@
 
 ![Demo](docs/demo.gif)
 
-[Watch the full demo](docs/demo.mp4)
+[Watch the full video demo](docs/demo.mp4)
 
 
 ## 🎯 Pain Point
