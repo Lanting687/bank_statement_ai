@@ -6,3 +6,5 @@ __pycache__/
 .DS_Store
 *_doctr.txt
 *_doctr_words.json
+transactions.csv
+transactions.json
