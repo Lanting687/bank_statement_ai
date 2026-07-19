@@ -20,7 +20,7 @@
 </div>
 
 
-## Pain Point
+## 🎯 Pain Point
 
 - One company. Multiple bank accounts. Different currencies. Hundreds of pages of transactions. 
 - For Unrecorded Liabilities testing, auditors may need to go through every statement, find debit transactions one by one, convert amounts and decide which payments are large enough to test. The more accounts, currencies and transactions are involved, the easier it is to miss an item, use the wrong exchange rate, or select payments inconsistently.
