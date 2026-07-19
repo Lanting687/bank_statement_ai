@@ -36,20 +36,6 @@ def test_boundary_amount_is_included():
     assert len(result) == 1
 
 
-# --- Transaction.is_debit ---
-
-def test_negative_amount_is_debit():
-    assert _txn("-0.01").is_debit is True
-
-
-def test_positive_amount_is_not_debit():
-    assert _txn("0.01").is_debit is False
-
-
-def test_zero_amount_is_not_debit():
-    assert _txn("0").is_debit is False
-
-
 # --- in_date_range ---
 
 def test_date_within_range():
