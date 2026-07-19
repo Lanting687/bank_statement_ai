@@ -4,3 +4,5 @@ __pycache__/
 .venv/
 .pytest_cache/
 .DS_Store
+*_doctr.txt
+*_doctr_words.json
