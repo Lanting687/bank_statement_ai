@@ -141,7 +141,7 @@ Open [http://127.0.0.1:8050](http://127.0.0.1:8050) in your browser.
 pytest tests/ -q
 ```
 
-Covers debit filtering, date range logic, currency conversion, and edge cases. No API key required.
+Covers debit filtering, date range logic, currency conversion, and edge cases. No network calls or API keys are required.
 
 
 ## Responsible Use and Disclaimer
