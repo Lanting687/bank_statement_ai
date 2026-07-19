@@ -22,7 +22,7 @@
 
 ## 🎬 Demo
 
-<video src="docs/demo.mp4" controls width="100%"></video>
+![Demo](docs/demo.gif)
 
 
 ## 🎯 Pain Point
