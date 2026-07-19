@@ -15,7 +15,7 @@
 ![Status](https://img.shields.io/badge/Status-Prototype-orange)
 ![Tests](https://img.shields.io/badge/Tests-19%20passed-brightgreen)
 
-[Demo](#demo) · [Pain Point](#pain-point) · [Key Features](#key-features) · [How It Works](#how-it-works) · [Getting Started](#getting-started) · [Testing](#testing) · [Disclaimer](#disclaimer)
+[Demo](#-demo) · [Pain Point](#-pain-point) · [Key Features](#-key-features) · [How It Works](#️-how-it-works) · [Getting Started](#-getting-started) · [Testing](#-testing) · [Disclaimer](#️-disclaimer)
 
 </div>
 
