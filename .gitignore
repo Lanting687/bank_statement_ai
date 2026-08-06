@@ -2,9 +2,15 @@
 __pycache__/
 *.pyc
 .venv/
+venv/
 .pytest_cache/
 .DS_Store
 *_doctr.txt
 *_doctr_words.json
 transactions.csv
 transactions.json
+
+# Next.js frontend (frontend/ has its own .gitignore too, this covers a
+# stray `npm install`/`npm run build` run from the repo root)
+frontend/node_modules/
+frontend/.next/
