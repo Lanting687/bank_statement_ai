@@ -1,250 +1,233 @@
 # Architecture
 
-This document describes the actual implementation of Bank Statement AI as of
-the "PDF and OCR Side-by-Side Review Workspace" feature. It is meant to be
-read before making further architectural changes — see `CLAUDE.md`.
+This document describes the actual implementation of Bank Statement AI,
+including the Next.js + FastAPI rearchitecture that replaced the original
+Dash app. Read it before making further architectural changes — see
+`CLAUDE.md`.
 
 ## 1. System Overview
 
-Bank Statement AI has three entry points sharing one processing pipeline:
+Bank Statement AI now has three entry points, two of which share one
+processing pipeline:
 
-- **Dash web app** (`app.py`) — the primary interface. Upload one or more
-  PDFs, run OCR, review the OCR output against the original page, extract
-  transactions with DeepSeek, filter/select them, and export to Excel.
+- **Next.js frontend** (`frontend/`) — the primary interface. Upload one or
+  more PDFs, run OCR, review the OCR output against the original page
+  (rendered client-side), extract transactions with DeepSeek, filter/select
+  them, and export to Excel. Talks to the backend over HTTP; holds no
+  business logic of its own beyond request orchestration and presentation.
+- **FastAPI backend** (`backend/`) — a thin REST API wrapping the same
+  `src/` pipeline the CLI uses. Owns all server-side state (uploaded PDF
+  bytes, OCR results, extracted transactions) in `backend/store.py`.
 - **CLI** (`src/cli.py`) — a single-file, non-interactive path: PDF in,
-  filtered CSV/JSON out. Used for scripting; has no review step.
+  filtered CSV/JSON out. Unaffected by this rearchitecture; still calls
+  `src/pipeline.py` directly, no HTTP involved.
 - **Shared pipeline** (`src/`) — OCR, LLM extraction, filtering, FX
-  conversion, and export logic, used by both of the above.
+  conversion, and export logic, used by both the backend and the CLI.
+
+**The Dash app (`app.py`) has been retired.** It previously served as both
+the frontend *and* the backend (Dash bundles a Flask server with its own
+templating). Splitting the frontend into Next.js meant something else had
+to serve `src/`'s pipeline over HTTP — that's what `backend/` is. `app.py`
+still exists as a file (see the note at its top) only because of a
+sandbox-specific inability to delete it during this change; it is not
+imported or run by anything and should be deleted.
 
 ### Data flow
 
 ```mermaid
 flowchart LR
-    A[PDF Upload] --> B[Decode + Validate<br/>src/pdf_review.py]
-    B --> C[docTR OCR<br/>src/ocr_advanced.py]
-    C --> D[OCRResult: page 1..N<br/>src/models.py]
-    D --> E[Review Workspace<br/>PDF page image + OCR text, side by side]
-    E -->|user clicks Extract Transactions| F[DeepSeek Extraction<br/>src/llm_extract.py]
+    A[PDF Upload] --> B[POST /api/documents<br/>decode + validate<br/>src/pdf_review.py]
+    B --> C[POST /api/documents/id/ocr<br/>docTR OCR<br/>src/ocr_advanced.py]
+    C --> D[OCRResult: page 1..N<br/>src/models.py, cached in backend/store.py]
+    D --> E[Review Workspace<br/>Next.js: PDF page rendered client-side with pdf.js<br/>+ OCR text panel, side by side]
+    E -->|POST /api/documents/id/extract| F[DeepSeek Extraction<br/>src/llm_extract.py]
     F --> G[Pydantic Validation<br/>ExtractionResult]
     G --> H[Transaction dataclass<br/>src/parse.py]
-    H --> I[Debit + Threshold + Date Filtering<br/>src/filter.py]
-    I --> J[FX Conversion<br/>src/fx.py]
-    J --> K[Human Transaction Review<br/>tick/untick rows]
-    K --> L[Excel / CSV / JSON Export<br/>app.py download / src/export.py]
+    H --> I[POST /api/transactions/compute<br/>Filtering + FX Conversion<br/>src/filter.py, src/fx.py]
+    I --> J[Human Transaction Review<br/>Next.js table, tick/untick rows]
+    J --> K[POST /api/export/excel<br/>src/export.py-style xlsx build]
 ```
 
 ### Human review points
 
-There are now two human-in-the-loop checkpoints, not one:
+Unchanged from the OCR-review feature: two human-in-the-loop checkpoints.
 
-1. **OCR review** (new): after OCR runs, the user compares each PDF page
-   against the text docTR extracted from it, before that text is ever sent
-   to DeepSeek. This is the feature this document describes.
-2. **Transaction review** (existing): after DeepSeek extraction, the user
-   ticks/unticks pre-selected rows before exporting.
-
-Splitting these two checkpoints means DeepSeek is only ever called once the
-user has (optionally) sanity-checked the OCR text it will read — see
-section 4 ("Primary Objective") in the original feature brief.
+1. **OCR review**: after OCR runs, the user compares each PDF page against
+   the text docTR extracted from it, before that text is ever sent to
+   DeepSeek.
+2. **Transaction review**: after DeepSeek extraction, the user ticks/unticks
+   pre-selected rows before exporting.
 
 ## 2. Module Responsibilities
 
+### Backend (`backend/`, new)
+
 | Module | Responsibility |
 |---|---|
-| `app.py` | Dash layout and callbacks. Owns UI-only, process-lifetime caches (`_PDF_CACHE`, `_OCR_CACHE`, `_PAGE_IMAGE_CACHE`). Callbacks are kept thin: they call into `src/` for all real logic and only assemble Dash outputs. |
-| `src/cli.py` | Non-interactive entry point. Unchanged by this feature: still calls `pipeline.extract_transactions()` and writes CSV/JSON via `src/export.py`. No OCR review step. |
-| `src/pdf_review.py` | **New.** Decodes an uploaded PDF (`decode_upload`), validates it and computes page count / a stable content-hash id (`load_document`), and renders a single page to a PNG for the browser (`render_page_png_base64`). Everything operates on in-memory bytes; nothing is written to disk. Raises typed errors (`InvalidPDFError`, `PasswordProtectedPDFError`, `PageOutOfRangeError`) instead of leaking pypdfium2 exceptions or raw tracebacks to the UI. |
-| `src/models.py` | **New.** `OCRPage` / `OCRResult` — the page-aware OCR data model shared by `ocr_advanced.py`, `pipeline.py`, and `app.py`. |
-| `src/ocr_advanced.py` | Runs docTR OCR (`run_ocr`, unchanged) and flattens the result. `result_to_ocr_result()` (new) builds an `OCRResult` with one `OCRPage` per PDF page. `result_to_text()` (existing signature, now implemented on top of `result_to_ocr_result`) and `extract_ocr()` (new convenience wrapper) sit alongside it — see section 3 for why both exist. docTR/PyTorch imports stay function-local inside `run_ocr()`, so importing this module (or `app.py`) never loads either library — they only load when OCR actually runs. |
-| `src/llm_extract.py` | Sends OCR text to DeepSeek (`deepseek-v4-flash`) via a plain HTTP POST (`requests`), asking for JSON-mode output matching a shape spelled out in the system prompt, and validates the reply with a Pydantic model (`ExtractionResult.model_validate()`), returns `(currency, list[Transaction])`. Originally used Google Gemini via the `google-genai` SDK; switched to DeepSeek in a later change — the public function signature and return type are unchanged. |
-| `src/pipeline.py` | Composes the above. Now exposes OCR and DeepSeek as separable steps (`run_ocr_only`, `extract_statement_from_ocr`) as well as the original combined call (`extract_statement`, `extract_transactions`) that the CLI still uses unmodified. |
-| `src/parse.py` | `Transaction` dataclass. Unchanged. |
-| `src/filter.py` | Debit/threshold and date-range filtering. Unchanged. |
-| `src/fx.py` | Frankfurter FX lookup with an lru_cache and a 1:1 fallback on failure. Unchanged. |
-| `src/export.py` | CLI's CSV/JSON writers. Unchanged; the Dash app's Excel export is built inline in `app.py` (`download_excel`), also unchanged. |
+| `backend/main.py` | FastAPI app and every route. Routes are kept thin, mirroring the "keep Dash callbacks thin" rule from before: each route calls into `src/` (or `backend/store.py`) and shapes the result into a Pydantic response model — no OCR/extraction/filtering logic lives here directly. |
+| `backend/store.py` | `DocumentStore` — the in-memory, process-lifetime home for every uploaded document's state (PDF bytes, OCR result, extraction, last computed rows). See section 4. |
+| `backend/schemas.py` | Pydantic request/response models. Deliberately separate from `store.py`'s dataclasses: the store holds raw PDF bytes and full `Transaction`/`OCRResult` objects, which must never be serialized straight back to the client (see section 6); the schemas define exactly what the wire format is. |
+
+### Frontend (`frontend/`, new — Next.js 14, App Router, TypeScript)
+
+| Path | Responsibility |
+|---|---|
+| `frontend/app/page.tsx` | The single page. Owns all client-side orchestration state (which document is active, per-document review page, filters, row selections) and calls `lib/api.ts` for everything else. This is the closest analogue to the old `app.py`'s Dash callbacks, but as plain React state + `useEffect`, not a callback graph. |
+| `frontend/lib/api.ts` | Typed `fetch` wrappers for every backend endpoint. The only place that knows the API's URL shape. |
+| `frontend/lib/types.ts` | TypeScript interfaces mirroring `backend/schemas.py` by hand (see section 3 for why not generated). |
+| `frontend/components/pdf-page-viewer.tsx` | Renders one PDF page client-side with `pdfjs-dist`. This is the biggest architectural change from the Dash version: `src/pdf_review.py`'s `render_page_png_base64()` used to run server-side and ship a PNG to the browser; now the browser renders the page itself from the original `File` object, and the backend never produces a preview image at all. See section 4 for the trade-off this introduces. |
+| `frontend/components/review-workspace.tsx`, `transactions-table.tsx`, `filters-panel.tsx`, `document-list.tsx`, `upload-zone.tsx` | Presentational feature components — each corresponds to one region of the old Dash layout (review panels, transaction tables, the filter sidebar, the upload list). |
+| `frontend/components/ui/*` | Small, hand-authored Tailwind-styled primitives (Button, Card, Badge, Tabs, Table, Select, Input, Alert, Spinner) in the shadcn/ui visual style. Not built on Radix UI or shadcn's CLI — see `docs/CODING_STANDARDS.md` for why, and what re-adding it later would involve. |
+
+### Shared pipeline (`src/`, unchanged by this rearchitecture)
+
+| Module | Responsibility |
+|---|---|
+| `src/cli.py` | Non-interactive entry point. Untouched: still calls `pipeline.extract_transactions()` and writes CSV/JSON via `src/export.py`. |
+| `src/pdf_review.py` | Decodes/validates an uploaded PDF and computes page count / a stable content-hash id (`load_document`). Its image-rendering function (`render_page_png_base64`) is no longer called by anything in the running app now that rendering is client-side (section 4) — kept because `src/cli.py`-adjacent tooling and `tests/test_pdf_review.py` still exercise it, and because a server-rendered fallback is a plausible future need. |
+| `src/models.py` | `OCRPage` / `OCRResult` — the page-aware OCR data model, unchanged. |
+| `src/ocr_advanced.py` | Runs docTR OCR; unchanged. |
+| `src/llm_extract.py` | Sends OCR text to DeepSeek via a plain HTTP POST (`requests`), JSON-mode output validated with Pydantic. Unchanged by this rearchitecture (already switched from Gemini to DeepSeek in a prior change). |
+| `src/pipeline.py` | `run_ocr_only()` / `extract_statement_from_ocr()` (separable steps, used by `backend/main.py`) and `extract_statement()` / `extract_transactions()` (combined, used by the CLI). Unchanged. |
+| `src/parse.py`, `src/filter.py`, `src/fx.py`, `src/export.py` | Unchanged. `backend/main.py` calls `src/filter.py` and `src/fx.py` directly in its `/api/transactions/compute` route, the same functions the old Dash `compute_and_render()` callback called. |
 
 ## 3. Data Models
 
-### `Transaction` (`src/parse.py`, unchanged)
+`Transaction`, `OCRPage`/`OCRResult` are unchanged — see their docstrings in
+`src/parse.py` / `src/models.py`.
 
-One line item: `date`, `description`, `amount` (signed `Decimal`), `raw_line`,
-`iso_date`, and an `is_debit` property. This is the model DeepSeek extraction,
-filtering, FX conversion, and export all share.
+**New: `backend/schemas.py` (wire format) vs. `frontend/lib/types.ts` (TS
+mirror).** These two files describe the same shapes by hand, kept in sync
+manually rather than generated from FastAPI's OpenAPI schema. That's a
+deliberate prototype-scale trade-off: `fastapi`'s OpenAPI output plus a
+generator (e.g. `openapi-typescript`) would remove the risk of the two
+drifting apart, but adds a build step and a new dependency for a codebase
+this size. If the API surface grows significantly, revisit this — see
+"Suggested next iteration" in the project's change history.
 
-### `OCRPage` / `OCRResult` (`src/models.py`, new)
-
-```python
-@dataclass(frozen=True)
-class OCRPage:
-    page_number: int   # 1-indexed, matches the review UI's "Page X of Y"
-    text: str          # recognised lines for this page, "" if none
-
-@dataclass(frozen=True)
-class OCRResult:
-    pages: tuple[OCRPage, ...]
-
-    @property
-    def full_text(self) -> str: ...   # pages joined for DeepSeek / the CLI
-
-    @property
-    def page_count(self) -> int: ...
-
-    def page(self, page_number: int) -> OCRPage | None: ...
-```
-
-**Why both a page-level model and a full-text property, instead of just
-changing `result_to_text()`'s return type:** the CLI and `llm_extract.py`
-only ever want one combined string; the review workspace only ever wants
-"the text for page N." Rather than pick one shape and force the other
-caller to adapt, `OCRResult.full_text` derives the flattened string from
-the same page list the UI renders from, so both views are guaranteed to
-agree and OCR only has to run once. `full_text` skips pages with no
-recognised text so it reproduces byte-for-byte what the old
-`result_to_text()` returned before this refactor (see
-`tests/test_ocr_result.py::test_result_to_text_matches_full_text_for_same_document`).
-
-### `PDFDocument` (`src/pdf_review.py`, new)
-
-```python
-@dataclass(frozen=True)
-class PDFDocument:
-    document_id: str    # sha256(pdf_bytes)[:16] -- content-addressed, not a path
-    filename: str
-    pdf_bytes: bytes
-    page_count: int
-```
-
-### Review state (`app.py`, new, browser-side)
-
-Two small `dcc.Store`s hold only serializable metadata:
-
-```python
-# review-store: dict[document_id, dict]
-{
-    "<document_id>": {
-        "filename": "statement.pdf",
-        "page_count": 3,
-        "ocr_status": "done" | "error",   # no "pending"/"running" state today —
-                                            # OCR runs synchronously per click
-        "ocr_error": None | "message",
-        "current_page": 1,
-    },
-    ...
-}
-
-# review-active-store
-{"document_id": "<document_id>" | None}
-```
-
-No PDF bytes, OCR text, rendered images, or model/file-handle objects ever
-go into a `dcc.Store` — see section 4.
+**New: `backend/store.py`'s `DocumentState`** is the server-side
+consolidation of what the Dash version split across `dcc.Store` (small
+browser-held metadata) and module-level cache dicts in `app.py`. See
+section 4.
 
 ## 4. State and Caching
 
-**Client-side (`dcc.Store`, held by the browser):**
-`uploads-store` (staged upload contents, existing/unchanged design),
-`review-store` and `review-active-store` (small JSON metadata only, see
-above), `processed-store` / `display-store` / `selection-store` (existing,
-unchanged — extracted transactions, filtered rows, and tick state).
-
-**Server-side (`app.py` module-level dicts, held in the Python process):**
+This is the section that changed most. With a Next.js frontend there is no
+`dcc.Store` equivalent — the frontend is stateless between HTTP requests —
+so **all per-document state now lives server-side**, in
+`backend/store.py`'s `DocumentStore`:
 
 ```python
-_PDF_CACHE: dict[str, PDFDocument]           # document_id -> decoded PDF bytes
-_OCR_CACHE: dict[str, OCRResult]             # document_id -> page-level OCR text
-_PAGE_IMAGE_CACHE: dict[tuple[str, int], str]  # (document_id, page) -> base64 PNG
+class DocumentState:
+    document_id: str
+    filename: str
+    pdf_bytes: bytes
+    page_count: int
+    ocr_status: str            # "pending" | "done" | "error"
+    ocr_error: str | None
+    ocr_result: OCRResult | None
+    extraction: ExtractionState | None   # source_currency + transactions
+    computed: ComputedState | None       # last /compute result, for export
 ```
 
-**Why server-side for these three:** a multi-page bank statement's PDF
-bytes plus one rendered PNG per page easily reach several megabytes.
-`dcc.Store` data is serialized into the page and held in browser memory —
-fine for small metadata, wasteful and slow for binary blobs the user only
-looks at one page of at a time. Keeping them server-side, keyed by
-`document_id` (a content hash — see `pdf_review.make_document_id`), means
-the browser only ever asks for "page N of document X" and gets exactly
-that image and that page's OCR text back.
+The frontend keeps only small, ephemeral UI state in React (`useState`):
+which document is active, which page it's showing, the current filter
+values, and which row indices are ticked. None of that needs to survive a
+page reload to keep the *data* safe — it all comes straight back from the
+backend on the next request.
 
-**Cache keys:** `document_id` is `sha256(pdf_bytes)[:16]` — the same file
-uploaded twice gets the same id and reuses the same cache entries; the id
-reveals nothing about the original filename or any server path.
+**The one exception, and the main trade-off of this rearchitecture:** the
+original PDF's bytes, needed to render a preview page with `pdf.js`, live
+only in the browser's `File` object from the `<input>`/drop event — see
+`frontend/components/pdf-page-viewer.tsx`. Reloading the browser tab loses
+that object (JS cannot silently re-read a file from disk), so a reload
+mid-review shows a "re-upload to preview" state even though the OCR text
+and any extraction are still sitting in `backend/store.py` and reappear
+fine. The old Dash version didn't have this gap, because it rendered pages
+to PNGs server-side and those PNGs were cached in `_PAGE_IMAGE_CACHE`,
+independent of anything the browser held. This was a deliberate choice
+(see the "PDF rendering" decision in this feature's change history) traded
+for: no server-side image rendering/caching code at all, and crisper
+zooming since `pdf.js` renders at the panel's actual pixel size instead of
+a fixed server-chosen resolution.
 
-**Repeated OCR/DeepSeek calls are prevented by construction, not just by
-convention:**
-- Page navigation (`navigate_review_page`) only mutates an integer
-  (`current_page`) inside `review-store`. It never touches `_OCR_CACHE` and
-  never imports `ocr_advanced` or `llm_extract`.
-- `extract_transactions_step` skips any file whose name is already a key in
-  `processed-store`, so clicking "Extract Transactions" or "Continue to
-  Extraction" again after a successful run doesn't re-call DeepSeek.
-- `render_review_panels` only re-renders an already-rendered page if
-  `_PAGE_IMAGE_CACHE` doesn't have that `(document_id, page)` key yet.
+**Cache keys, and why OCR/DeepSeek never re-run unnecessarily** are
+unchanged in spirit from the Dash version, just enforced at the API layer
+instead of in Dash callbacks:
+- `document_id` is `sha256(pdf_bytes)[:16]` (`src/pdf_review.make_document_id`).
+- `POST /api/documents/{id}/ocr` is idempotent: if `ocr_status == "done"`
+  already, it returns the cached `OCRResult` without re-running docTR
+  (`force=True` opts back in, not used by the frontend today).
+- `POST /api/documents/{id}/extract` is idempotent the same way for
+  DeepSeek, and the frontend also skips calling it at all for documents
+  that already have `has_extraction: true`.
+- Page navigation in the review workspace is a pure client-side state
+  update (`reviewPageById` in `app/page.tsx`) plus a `pdf.js` re-render of
+  an already-parsed document — it never calls the backend at all.
 
-**Isolation between users/sessions:** none, currently. The three caches
-above are process-global, not session-scoped — every browser tab connected
-to the same running `app.py` process shares them. This is acceptable for a
-single-user local prototype (see `README.md`'s disclaimer) but is a real
-limitation: it is **not** safe to deploy as-is to multiple concurrent users
-on a shared server, since one user's uploaded statement bytes would sit in
-memory (and be retrievable via a guessed/observed `document_id`) for the
-lifetime of the process or until restarted. Hardening this (per-session
-keys, eviction, or moving to a real cache/store) is out of scope for this
-iteration — see `docs/PRODUCT_REQUIREMENTS.md` section "Out of Scope."
+**Isolation between users/sessions:** none, same known limitation as
+before. `DocumentStore` is one process-global dict, not session-scoped —
+every browser tab talking to the same running `uvicorn` process shares it.
+Fine for one local user; not safe for concurrent multi-user deployment
+without further work (per-session keys, eviction, or a real cache/store) —
+see `docs/PRODUCT_REQUIREMENTS.md`, "Out of Scope."
 
 ## 5. External Dependencies
 
 | Dependency | Used for | Failure / fallback behaviour |
 |---|---|---|
-| DeepSeek (`requests`, JSON mode) | Structured transaction extraction from OCR text | No fallback — extraction for that file fails; the error is caught per-file in `extract_transactions_step` and shown in the status log, other files still process. Requires `DEEPSEEK_API_KEY`; `DEEPSEEK_API_URL` optionally overrides the default base URL (`https://api.deepseek.com/v1`). |
-| Frankfurter API (`requests`) | Live FX conversion | On any exception, `fx.convert()` returns the original amount unchanged plus a warning string (1:1 fallback), rather than failing the whole extraction — unchanged by this feature. |
-| docTR (`python-doctr[torch]`) | OCR | No fallback — if the model fails to load or run, the exception is caught in `run_ocr_step` and recorded as an `ocr_status: "error"` entry for that file; other files still process. Imports are function-local so a broken/missing docTR install doesn't prevent the rest of the app from loading. |
-| pypdfium2 | Rendering PDF pages to images for the review panel, and (indirectly, via docTR) rasterising pages for OCR | Corrupt/empty/password-protected input raises a typed `PDFReviewError` subclass (see section 7) instead of propagating a raw `PdfiumError`. |
-
-**Why pypdfium2 and not a new PDF-rendering library:** `python-doctr[torch]`
-already depends on pypdfium2 internally (`doctr.io.DocumentFile.from_pdf`
-uses it to rasterise pages for the OCR model). Calling it directly from
-`src/pdf_review.py` for the review-panel preview adds no new install
-weight — see the comment in `requirements.txt`.
+| DeepSeek (`requests`, JSON mode) | Structured transaction extraction from OCR text | No fallback — extraction for that document fails; `backend/main.py`'s `/extract` route returns `502` with the error message, other documents are unaffected. Requires `DEEPSEEK_API_KEY`; `DEEPSEEK_API_URL` optionally overrides the default base URL. |
+| Frankfurter API (`requests`, via `src/fx.py`) | Live FX conversion | Unchanged: `fx.convert()` returns the original amount with a warning string on any failure (1:1 fallback), surfaced to the frontend as `warning` on the relevant document in `/api/transactions/compute`'s response. |
+| docTR (`python-doctr[torch]`) | OCR | Unchanged: no fallback: `run_ocr_only()` failures are caught in `backend/main.py`'s `/ocr` route and recorded as `ocr_status: "error"` rather than raised, so one document's OCR failure doesn't affect any other. |
+| pypdfium2 | PDF page-count validation on upload (`src/pdf_review.load_document`), and indirectly (via docTR) rasterising pages for OCR | No longer used for browser-facing rendering — see section 4. Corrupt/empty/password-protected input still raises a typed `PDFReviewError` subclass on upload. |
+| pdf.js (`pdfjs-dist`, frontend only) | Client-side PDF page rendering for the review panel | New in this rearchitecture. If a page fails to render (corrupt data slipping past the backend's validation, or a `pdf.js` internal error), `pdf-page-viewer.tsx` shows an inline error message rather than a blank panel. |
 
 ## 6. Security and Privacy
 
-- Bank statements contain sensitive financial data (account activity,
-  merchant names, amounts). Nothing in this feature changes that risk
-  profile, and this remains a **prototype**, not a hardened system.
-- **No permanent storage.** Uploaded PDF bytes exist only as: (a) a
-  Dash-managed base64 string in the browser's `uploads-store` while staged,
-  (b) an OS temp file (`tempfile.NamedTemporaryFile`, auto-deleted on
-  close) for the duration of the docTR call, and (c) the in-process
-  `_PDF_CACHE` described in section 4, cleared when the app restarts.
+Mostly unchanged in substance, re-verified against the new split:
+
+- **No permanent storage.** Uploaded PDF bytes exist as: (a) the browser's
+  in-memory `File` object, (b) an HTTP request body in transit to the
+  backend, (c) an OS temp file (`tempfile.NamedTemporaryFile`,
+  auto-deleted) for the duration of the docTR call, and (d) the in-process
+  `DocumentStore` in `backend/store.py`, cleared when the backend restarts.
   Nothing is written to a permanent or public directory.
-- **No server filesystem paths reach the browser.** The review panel's
-  image `src` is a `data:image/png;base64,...` URI built in memory; the
-  document identifier exposed to the browser (`document_id`) is a content
-  hash, not a path.
-- **Logs do not include statement content.** Status-log lines include the
-  filename and either a transaction/page count or an error message (e.g.
-  "Could not read this file as a PDF: ..."), never transaction text,
-  account numbers, or OCR'd page content.
-- **Filenames are treated as untrusted display strings**, not used to
-  construct any filesystem path (OCR still writes to a `NamedTemporaryFile`
-  with a fixed `.pdf` suffix, ignoring the original name, as before this
-  feature).
+- **No server filesystem paths reach the browser.** `document_id` is a
+  content hash, never a path; the backend never returns a file path in any
+  response.
+- **PDF bytes never round-trip back to the browser.** `backend/schemas.py`'s
+  response models deliberately have no field for raw PDF bytes — the only
+  way the frontend "sees" the PDF is the copy it already has locally (the
+  original `File` object), rendered by `pdf.js` in-browser.
+- **Logs do not include statement content.** Backend route handlers log
+  nothing beyond what `uvicorn`'s default access log records (method, path,
+  status); application-level errors returned to the client are short,
+  typed messages (see section 7), never transaction text or OCR output.
+- **CORS is scoped, not wide open.** `backend/main.py` only allows
+  `localhost:3000` / `127.0.0.1:3000` by default (the Next.js dev server),
+  and in normal operation isn't even exercised: `frontend/next.config.js`
+  proxies `/api/*` through Next.js itself, so requests from the browser are
+  same-origin and CORS doesn't come into play at all.
 - **API keys stay in environment variables** (`.env`, loaded via
-  `python-dotenv`, gitignored) — unchanged.
-- See section 4 for the known multi-user isolation limitation.
+  `python-dotenv` in `backend/main.py`, gitignored) — unchanged.
+- See section 4 for the known multi-user isolation limitation, unchanged
+  from before.
 
 ## 7. Error Handling
 
 | Situation | Behaviour |
 |---|---|
-| Invalid / corrupt PDF | `pdf_review.load_document()` raises `InvalidPDFError`; `run_ocr_step` catches it and records `ocr_status: "error"` with the message, other files keep processing. |
-| Password-protected PDF | `pdf_review._open()` inspects the pypdfium2 error message for "password" and raises `PasswordProtectedPDFError` with a plain-language explanation instead of the raw PDFium error. |
-| Empty PDF (0 bytes or 0 pages) | `InvalidPDFError` ("Uploaded file is empty." / "PDF has no pages."). |
-| OCR failure (docTR/PyTorch exception, including docTR not being installed) | Caught by a broad `except Exception` in `run_ocr_step` (deliberately broad — docTR/PyTorch can raise many exception types we can't enumerate); recorded per-file as `ocr_status: "error"`, not swallowed, not fatal to other files. |
-| Page-rendering failure | `render_page_png_base64` raises `PageOutOfRangeError` for a bad page number; `render_review_panels` catches any `PDFReviewError` from rendering and shows no image rather than crashing the callback. |
-| DeepSeek failure / schema-validation failure | Caught per-file in `extract_transactions_step`; logged as `"✗ {filename}: {exc}"`, other files still process. |
-| FX API failure | `fx.convert()` returns the original amount with a warning string (unchanged). |
-| Export failure | Not specifically handled beyond existing pandas/openpyxl exceptions; out of scope for this iteration. |
+| Invalid / corrupt / empty PDF | `POST /api/documents` returns `422` with a plain-language `detail` message from `pdf_review.PDFReviewError`; the frontend shows it in the dismissible error banner. |
+| Password-protected PDF | Same path as above — `pdf_review._open()` raises `PasswordProtectedPDFError`, surfaced as a `422`. |
+| OCR failure (docTR/PyTorch exception, including docTR not installed) | `POST /api/documents/{id}/ocr` catches it (deliberately broad `except Exception` — docTR/PyTorch can raise types we can't enumerate), returns `200` with `ocr_status: "error"` and the message rather than a `5xx` — this is a per-document result, not a request failure. |
+| Requesting OCR/extraction for an unknown `document_id` | `404`. |
+| Extraction requested before OCR finished | `409`, with a message telling the caller to run OCR first. |
+| DeepSeek failure / malformed response / schema-validation failure | `POST /api/documents/{id}/extract` catches it, returns `502` with the error message. |
+| FX API failure | Unchanged: `fx.convert()`'s 1:1 fallback; surfaced as a non-fatal `warning` string per document in `/api/transactions/compute`'s response, not an error. |
+| PDF page fails to render in the browser | `pdf-page-viewer.tsx` catches the `pdf.js` rejection and shows an inline message in the preview panel instead of a blank canvas. |
+| Export failure | Not specifically handled beyond pandas/openpyxl's own exceptions bubbling up as a `500`; out of scope for this iteration, same as before. |
 
-No raw Python traceback is ever rendered in the UI — every path above
-converts exceptions into a short, typed, user-facing message before it
-reaches a Dash `Output`.
+No raw Python traceback or stack trace is ever rendered in the frontend —
+every path above converts exceptions into a short, typed message before it
+reaches an HTTP response, and the frontend only ever displays `detail`
+strings, never a raw response body.

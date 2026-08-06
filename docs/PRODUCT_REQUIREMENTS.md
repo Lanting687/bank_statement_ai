@@ -1,13 +1,18 @@
-# Product Requirements: PDF and OCR Side-by-Side Review Workspace
+# Product Requirements
+
+Covers both the original OCR side-by-side review feature and the
+subsequent Next.js + FastAPI rearchitecture (replacing the Dash UI) that
+delivers the same requirements through a different stack.
 
 ## 1. Product Problem
 
-Before this feature, the Dash app ran OCR and sent the result straight to
-DeepSeek with no checkpoint in between. Users received structured
-transaction output with no page-level way to verify whether OCR accurately
-represented the original PDF. For an audit / bookkeeping tool built around
-"trust but verify," that's the wrong order — DeepSeek and the user's own
-threshold/date filtering both trust text that was never checked.
+Before the OCR review feature, this app ran OCR and sent the result
+straight to the LLM (DeepSeek) with no checkpoint in between. Users
+received structured transaction output with no page-level way to verify
+whether OCR accurately represented the original PDF. For an audit /
+bookkeeping tool built around "trust but verify," that's the wrong order —
+DeepSeek and the user's own threshold/date filtering both trust text that
+was never checked.
 
 This creates real risks, especially on scanned or low-quality statements:
 
@@ -20,73 +25,104 @@ This creates real risks, especially on scanned or low-quality statements:
 - Incorrect currency identification
 - Generally poor extraction from low-quality scans
 
+Separately, the original Dash UI — while functional — looked and felt like
+a prototype: default Bootstrap styling, no polish, limited layout
+flexibility. For a tool meant to save a professional (auditor,
+bookkeeper) real review time, the interface itself needed to look and
+behave like a tool they'd trust and want to keep using, not a demo.
+
 ## 2. User Story
 
 As a user reviewing a bank statement, I want to see the original PDF page
-beside the OCR-extracted text, so that I can identify OCR errors before
-relying on the extracted transactions.
+beside the OCR-extracted text, in a fast, clean interface, so that I can
+identify OCR errors before relying on the extracted transactions.
 
 ## 3. Primary User Flow
 
-1. Upload one or more PDFs.
-2. Click **Run OCR**.
-3. The Review OCR tab shows the first uploaded document: original PDF page
-   on the left, OCR text for that page on the right.
-4. Select a document (if more than one was uploaded) from the dropdown.
-5. Navigate through pages with Previous / Next; each page's OCR text
-   updates alongside the rendered page image.
-6. Compare each page against its OCR text, watching for the error types
-   listed above.
-7. Click **Continue to Extraction** (or **Extract Transactions** in the
-   left-hand controls — both do the same thing) to run DeepSeek extraction
-   against the reviewed OCR text.
-8. The view switches to the Transactions tab; review the pre-selected
-   debit rows, adjust threshold/date range/currency, tick or untick rows.
-9. Export the selected rows to Excel (unchanged from before this feature).
+1. Upload one or more PDFs (drag-and-drop or click to browse).
+2. OCR starts automatically per file (it's local/free — no API cost, no
+   reason to make the user click twice per file).
+3. In the **Review OCR** tab, pick a document from the sidebar list (if
+   more than one was uploaded); the original PDF page and its OCR text
+   appear side by side.
+4. Use **Previous** / **Next** to page through the document, comparing
+   each page against its OCR text, watching for the error types listed
+   above.
+5. Click **Continue to Extraction** (in the review panel) or **Extract
+   Transactions** (in the sidebar, which processes every OCR'd document at
+   once) — either runs DeepSeek extraction and switches to the
+   **Transactions** tab.
+6. Set a **minimum payment amount**, optional **date range**, and
+   **display currency** in the sidebar; the transaction table updates
+   automatically.
+7. Review the pre-selected debit rows; tick or untick as needed.
+8. Click **Download Excel** to export the selected rows.
 
 ## 4. Functional Requirements
 
 - Multi-document support: upload and review several PDFs in one session,
   each tracked independently (own page count, own OCR status, own current
-  page).
-- Multi-page support: page navigation within a single document.
+  review page, own extraction status).
+- Multi-page support: page navigation within a single document, rendered
+  client-side (`pdf.js`) at the panel's actual size.
 - Previous/Next page navigation with a visible "Page X of Y" indicator.
 - Side-by-side PDF page image and OCR text for the currently selected
-  page.
-- Responsive layout: side by side at desktop widths, stacked on narrow
-  screens.
-- OCR runs once per document and its result is reused for both review and
-  (later) DeepSeek extraction — never re-run by navigation or re-selection.
+  page, responsive down to a single stacked column on narrow screens.
+- OCR runs once per document (automatically, on upload) and its result is
+  cached server-side and reused for both review and extraction — never
+  re-run by navigation, re-selection, or revisiting a document.
+- DeepSeek extraction is explicit (never automatic) and idempotent per
+  document — re-triggering it for an already-extracted document does not
+  call DeepSeek again.
 - Clear, plain-language error messages for invalid/corrupt/password-
-  protected/empty PDFs and for OCR failures — no raw tracebacks.
-- Existing Excel export continues to work unchanged.
-- Existing CLI (`src/cli.py`, CSV/JSON export) continues to work unchanged.
+  protected/empty PDFs, OCR failures, and DeepSeek failures — no raw
+  tracebacks or stack traces anywhere in the UI.
+- A document can be removed from the session entirely (upload mistakes,
+  wrong file) — new in this iteration; the Dash version had no equivalent.
+- Existing Excel export continues to work: selected rows only, one sheet
+  per document, same column layout.
+- Existing CLI (`src/cli.py`, CSV/JSON export) continues to work unchanged
+  — it does not talk to the backend API at all, it still calls `src/`
+  directly.
 
 ## 5. Non-Functional Requirements
 
-- No unnecessary network calls: FX and DeepSeek are only called for actions
-  that need them (extraction, currency conversion), never as a side effect
-  of page navigation or document selection.
-- No repeated OCR during navigation (verified: `navigate_review_page` only
-  touches `review-store`'s `current_page` field).
-- No repeated DeepSeek call during navigation, or on a second click of
-  Extract/Continue for files already extracted (verified:
-  `extract_transactions_step` skips filenames already in `processed-store`).
-- Readable at common laptop resolutions (tested layout down to a stacked
-  mobile-width view via Bootstrap `xs`/`md` breakpoints).
-- Reasonable memory handling: PDF bytes, OCR text, and rendered page images
-  are cached server-side, not duplicated into every browser store — see
-  `docs/ARCHITECTURE.md` section 4.
-- Typed Python interfaces: `OCRPage`/`OCRResult`/`PDFDocument` are
-  dataclasses; `src/pdf_review.py` functions are fully type-hinted.
-- Testable processing logic: `src/pdf_review.py` and `src/models.py` have
-  no Dash/docTR/DeepSeek dependency and are unit-tested directly.
+- No unnecessary network calls: FX and DeepSeek are only called for
+  actions that need them, never as a side effect of page navigation,
+  document selection, or a browser reload.
+- No repeated OCR during navigation or on revisiting a document (verified:
+  page navigation is pure client-side state; `POST /api/documents/{id}/ocr`
+  is idempotent).
+- No repeated DeepSeek call on a second "Extract" click for an
+  already-extracted document (verified: `POST /api/documents/{id}/extract`
+  is idempotent; the frontend also pre-filters which documents it offers to
+  extract).
+- **Professional, responsive UI**: built with Tailwind CSS and a
+  hand-authored shadcn/ui-style component kit (`frontend/components/ui/`)
+  — consistent spacing, typography, color tokens, accessible focus states,
+  and a layout that adapts from desktop (side-by-side review panels, fixed
+  sidebar) down to mobile (stacked panels, full-width sidebar).
+- Readable at common laptop resolutions and usable on a tablet/phone
+  viewport.
+- Reasonable memory handling: PDF bytes, OCR text, and extracted
+  transactions are cached server-side in `backend/store.py`, not duplicated
+  into browser storage; only small per-document metadata (status, page
+  count, current page) lives in frontend state.
+- Typed interfaces on both sides: `OCRPage`/`OCRResult`/`PDFDocument`
+  (Python dataclasses) and Pydantic schemas in `backend/schemas.py` on the
+  backend; TypeScript interfaces in `frontend/lib/types.ts` on the
+  frontend.
+- Testable processing logic: `src/pdf_review.py`, `src/models.py`, and
+  `backend/main.py`'s routes are all unit-tested with mocked external
+  services, no live server required.
 - Safe treatment of uploaded financial documents: no permanent storage, no
-  statement content in logs, no server paths exposed to the browser — see
+  statement content in logs, no server paths exposed to the browser, PDF
+  bytes never sent back to the browser by the API — see
   `docs/ARCHITECTURE.md` section 6.
-- No API keys required for unit tests: `tests/test_ocr_result.py` uses fake
-  docTR-shaped objects; `tests/test_pdf_review.py` uses PDFs generated
-  in-memory with pypdfium2. Neither calls docTR, DeepSeek, or the network.
+- No API keys required for unit tests: OCR is mocked with fake docTR-shaped
+  objects, DeepSeek/FX are monkeypatched at their call site, matching the
+  pattern already established in `tests/test_fx.py` and
+  `tests/test_llm_extract.py`.
 
 ## 6. Out of Scope
 
@@ -98,48 +134,62 @@ Explicitly not part of this iteration:
   nothing in this feature renders them)
 - Linking individual OCR words to page coordinates in the UI
 - Manual correction of extracted transactions
-- Persistent user accounts
-- Long-term document storage
+- Persistent user accounts or authentication
+- Long-term document storage / a database
 - Collaborative review
 - Audit trail database
 - Role-based access control
-- Mobile-first PDF annotation
+- Server-rendered PDF preview images (deliberately replaced with
+  client-side `pdf.js` rendering — see `docs/ARCHITECTURE.md` section 4 for
+  the trade-off; `src/pdf_review.render_page_png_base64()` still exists and
+  is tested, but nothing in the running app calls it anymore)
+- Real shadcn/ui + Radix UI component installation (the current kit is a
+  hand-authored, visually-equivalent stand-in — see
+  `docs/CODING_STANDARDS.md`)
+- Generated TypeScript types from the OpenAPI schema (types are hand-kept
+  in sync — see `docs/ARCHITECTURE.md` section 3)
 - Replacing docTR
-- Replacing the LLM extraction provider — out of scope for *this* iteration,
-  but done in a later change: extraction now calls DeepSeek instead of
-  Gemini (see `docs/ARCHITECTURE.md` section 5 and `src/llm_extract.py`)
-- Per-session/multi-user cache isolation (see `docs/ARCHITECTURE.md`
-  section 4 — the server-side caches are process-global, a known
-  prototype-scale limitation, not a hardened multi-user design)
+- Replacing the LLM extraction provider (already DeepSeek, not Gemini —
+  out of scope to change again in this iteration)
+- Per-session/multi-user cache isolation (the server-side `DocumentStore`
+  is process-global, a known prototype-scale limitation, not a hardened
+  multi-user design — see `docs/ARCHITECTURE.md` section 4)
 
 ## 7. Acceptance Criteria
 
-1. A user can upload a valid PDF in the Dash app. ✅
-2. The application can render or display the uploaded PDF. ✅ (rendered
-   page image via `pdf_review.render_page_png_base64`)
+1. A user can upload a valid PDF via the Next.js app. ✅
+2. The application renders the uploaded PDF in the browser (client-side,
+   `pdf.js`). ✅
 3. The user can see the PDF and OCR-extracted text side by side. ✅
-4. OCR text corresponds to the currently displayed page. ✅ (`OCRResult.page(n)`)
+4. OCR text corresponds to the currently displayed page. ✅
 5. The user can navigate to the previous and next pages. ✅
 6. The UI displays the current page and total page count. ✅
-7. Multi-page PDFs work correctly. ✅ (tested with 1–3 page PDFs)
-8. Multiple uploaded documents can be selected and reviewed independently. ✅
-9. Page navigation does not rerun OCR. ✅ (by construction — see section 5)
-10. Page navigation does not rerun DeepSeek extraction. ✅ (by construction)
-11. The existing transaction-extraction workflow still works. ✅
-    (`extract_statement_from_ocr` feeds the same `processed-store` shape
-    `compute_and_render` already consumed)
-12. Existing Excel export still works. ✅ (unchanged code path)
-13. Existing CLI CSV and JSON export still work. ✅ (unchanged code path,
-    verified by import + manual exercise since `pytest`/`google-genai`
-    aren't installable in the verification sandbox — see final report)
-14. Existing tests pass. ✅ (19/19)
-15. New tests cover page-level OCR results and review-state behaviour. ✅
-    (25 new tests: `tests/test_ocr_result.py`, `tests/test_pdf_review.py`)
-16. No real network calls are made during the test suite. ✅
-17. No API keys or sensitive example statements are committed. ✅ (tests
-    generate PDFs in-memory; no new fixture files added)
-18. `docs/ARCHITECTURE.md`, `docs/PRODUCT_REQUIREMENTS.md`,
-    `docs/CODING_STANDARDS.md`, `CLAUDE.md` exist and describe the actual
-    implementation. ✅
-19. `README.md` reflects the new workflow. ✅
-20. No raw user financial data in logs or committed fixtures. ✅
+7. Multi-page PDFs work correctly. ✅
+8. Multiple uploaded documents can be selected and reviewed independently,
+   each retaining its own current page. ✅
+9. Page navigation does not rerun OCR. ✅ (client-side state only)
+10. Page navigation does not rerun DeepSeek extraction. ✅
+11. A document can be removed from the session. ✅ (new: `DELETE
+    /api/documents/{id}`)
+12. The transaction-extraction workflow works end-to-end: OCR → review →
+    extract → filter → select → export. ✅
+13. Excel export produces the same shape as before (one sheet per
+    document, ticked rows only). ✅
+14. The CLI (`src/cli.py`) still works unchanged, independent of the
+    backend/frontend. ✅
+15. Existing `src/` unit tests pass unmodified (19 pre-existing +
+    `tests/test_llm_extract.py` added in the DeepSeek migration). ✅
+16. New tests cover the FastAPI backend's routes (upload validation, OCR
+    idempotency, extraction idempotency and error codes, compute filtering,
+    Excel export) with no real docTR/DeepSeek/network calls. ✅
+    (`tests/test_backend_api.py`)
+17. No real network calls are made during the test suite. ✅
+18. No API keys or sensitive example statements are committed. ✅
+19. `docs/ARCHITECTURE.md`, `docs/PRODUCT_REQUIREMENTS.md`,
+    `docs/CODING_STANDARDS.md`, `CLAUDE.md` describe the actual
+    implementation, including the new split architecture. ✅
+20. `README.md` reflects the new two-process (`uvicorn` + `next dev`) local
+    dev workflow. ✅
+21. The UI is visibly more polished than the retired Dash version:
+    consistent design system, responsive layout, accessible components. ✅
+    (Tailwind + shadcn/ui-style kit — see `docs/CODING_STANDARDS.md`)
