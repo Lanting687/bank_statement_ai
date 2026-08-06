@@ -12,6 +12,8 @@ import argparse
 import json
 import os
 
+from .models import OCRPage, OCRResult
+
 MIN_CONFIDENCE = 0.5  # drop words the model isn't confident about
 
 
@@ -52,28 +54,52 @@ def run_ocr(pdf_path: str):
     return model(doc)
 
 
-def result_to_text(result, min_confidence: float = MIN_CONFIDENCE) -> str:
+def result_to_ocr_result(result, min_confidence: float = MIN_CONFIDENCE) -> OCRResult:
     """
-    Receives the Document tree from run_ocr(), flattens it into a plain text string
-    (one line per text line, low-confidence words dropped), and returns it.
-    The returned string is stored as 'text' in pipeline.py (text = result_to_text(result))
-    and then passed to llm_extract.py as the 'text' parameter for Gemini to read.
-    -> str means this function always returns a string.
+    Receives the Document tree from run_ocr() and flattens it into an
+    OCRResult: one OCRPage per PDF page, each holding that page's recognised
+    text (one line per text line, low-confidence words dropped).
+
+    This is the page-aware replacement for the old result_to_text(), which
+    threw every page's lines into one flat string. Keeping page boundaries
+    lets the review workspace show "the OCR text for the page currently on
+    screen" instead of the whole document at once. result_to_text() and
+    extract_ocr() below are both built on top of this.
     """
-    lines_out = []
-    for page in result.pages:
+    pages_out = []
+    for page_number, page in enumerate(result.pages, start=1):
+        lines_out = []
         for block in page.blocks:
             for line in block.lines:
                 words = [w.value for w in line.words if w.confidence >= min_confidence]
                 if words:
                     lines_out.append(" ".join(words))
+        pages_out.append(OCRPage(page_number=page_number, text="\n".join(lines_out)))
+    return OCRResult(pages=tuple(pages_out))
+
+
+def result_to_text(result, min_confidence: float = MIN_CONFIDENCE) -> str:
     """
-    \n is a newline — puts each transaction on its own line so Gemini can
-    tell where one transaction ends and the next begins.
-    The resulting plain text string is passed to pipeline.py, which hands
-    it to llm_extract.py as the 'text' parameter for Gemini to read.
+    Backward-compatible flattened text, kept so any existing caller that
+    only wants one combined string (the CLI, in particular) doesn't need to
+    change. Internally this is just OCRResult.full_text — see models.py for
+    why that reproduces the exact same string the original implementation
+    returned (no blank-page placeholders, no double newlines).
+    -> str means this function always returns a string.
     """
-    return "\n".join(lines_out)
+    return result_to_ocr_result(result, min_confidence).full_text
+
+
+def extract_ocr(pdf_path: str, min_confidence: float = MIN_CONFIDENCE) -> OCRResult:
+    """Run OCR and return the page-aware OCRResult in one call.
+
+    This is what pipeline.py's run_ocr_only() calls, and what the Dash app's
+    "Run OCR" step uses: OCR runs exactly once per document and the same
+    OCRResult is reused for both the review panel (page by page) and the
+    Gemini extraction step (via .full_text) — see pipeline.py.
+    """
+    result = run_ocr(pdf_path)
+    return result_to_ocr_result(result, min_confidence)
 
 
 def result_to_words(result, min_confidence: float = MIN_CONFIDENCE) -> list[list[dict]]:

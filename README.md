@@ -13,9 +13,9 @@
 ![Pydantic](https://img.shields.io/badge/Pydantic-Structured%20Output-E92063)
 ![Excel](https://img.shields.io/badge/Export-Excel-217346)
 ![Status](https://img.shields.io/badge/Status-Prototype-orange)
-![Tests](https://img.shields.io/badge/Tests-19%20passed-brightgreen)
+![Tests](https://img.shields.io/badge/Tests-44%20passed-brightgreen)
 
-[Demo](#-demo) · [Pain Point](#-pain-point) · [Key Features](#-key-features) · [How It Works](#️-how-it-works) · [Getting Started](#-getting-started) · [Testing](#-testing) · [Disclaimer](#️-disclaimer)
+[Demo](#-demo) · [Pain Point](#-pain-point) · [Key Features](#-key-features) · [How It Works](#️-how-it-works) · [Getting Started](#-getting-started) · [Testing](#-testing) · [Documentation](#-documentation) · [Privacy](#-privacy) · [Disclaimer](#️-disclaimer)
 
 </div>
 
@@ -37,6 +37,7 @@
 ## ✨ Key Features
 
 - **Multi-PDF upload** — drag and drop one or more bank statements at once
+- **OCR review workspace** — before anything is sent to Gemini, see the original PDF page and the OCR-extracted text for it side by side, so you can catch OCR mistakes (misread amounts, dropped minus signs, wrong dates) up front
 - **AI-powered extraction** — automatically reads transactions from different PDF layouts using OCR and Gemini
 - **Debits only** — filters out credits so you only review payments out
 - **Smart pre-selection** — rows above your minimum amount threshold are automatically ticked, so you only sense-check rather than select from scratch
@@ -52,6 +53,7 @@
 |---|---|---|
 | Web Interface | Dash | The browser UI — upload PDFs, set filters, review and download results |
 | OCR | docTR | Reads text from each PDF page |
+| PDF Page Rendering | pypdfium2 | Renders each PDF page as an image for the side-by-side review panel (already a docTR dependency, so this adds no new install weight) |
 | AI Extraction | Gemini 2.5 Flash | Understands the text and picks out each transaction (date, amount, description, currency) |
 | Data Validation | Pydantic | Ensures Gemini always returns data in the exact format the app expects |
 | Currency Conversion | Frankfurter API | Converts amounts to your chosen currency using live exchange rates |
@@ -70,7 +72,15 @@ docTR OCR
         │  3. Recognition network — reads text inside each box
         │  4. Drops low-confidence words
         ▼
-Plain Text (newline-separated, one line per text line)
+Plain Text (newline-separated, one line per text line, kept page by page)
+        │
+        ▼
+Review Workspace (Dash Web UI)
+        │  Original PDF page and OCR text shown side by side
+        │  Navigate page by page, per document
+        │  Catches OCR errors before Gemini ever sees the text
+        ▼
+User clicks "Extract Transactions" / "Continue to Extraction"
         │
         ▼
 Gemini 2.5 Flash
@@ -140,11 +150,14 @@ Open [http://127.0.0.1:8050](http://127.0.0.1:8050) in your browser.
 ### 6. Use the app
 
 1. Drag and drop one or more bank statement PDFs into the upload zone (sample statements are available in the `samples/` folder)
-2. Set your **minimum payment amount** (rows above this will be pre-ticked)
-3. Optionally set a **date range** and **display currency**
-4. Click **Process** — the app runs OCR and Gemini extraction
-5. Review the pre-selected transactions in the right panel — tick or untick as needed
-6. Click **Download Excel** to export the selected rows
+2. Click **Run OCR** — this reads each PDF's text once and does *not* call Gemini yet
+3. In the **Review OCR** tab, pick a document from the dropdown, and use **Previous** / **Next** to page through it, comparing the original PDF page (left) against the OCR text for that page (right)
+4. Set your **minimum payment amount**, and optionally a **date range** and **display currency**
+5. Click **Extract Transactions** (in the left panel) or **Continue to Extraction** (at the bottom of the Review OCR tab) — either runs Gemini extraction against the OCR text you just reviewed, and switches to the **Transactions** tab
+6. Review the pre-selected transactions — tick or untick as needed
+7. Click **Download Excel** to export the selected rows
+
+Re-clicking Run OCR or Extract Transactions never re-processes a file that's already done — see `docs/ARCHITECTURE.md` for why.
 
 
 ## 🧪 Testing
@@ -153,7 +166,24 @@ Open [http://127.0.0.1:8050](http://127.0.0.1:8050) in your browser.
 pytest tests/ -q
 ```
 
-Covers debit filtering, date range logic, currency conversion, and edge cases. No network calls or API keys are required.
+Covers debit filtering, date-range logic, currency conversion, page-level OCR result handling, and PDF decode/validate/render logic (using PDFs generated in-memory, not committed files) — 44 tests in total. No network calls or API keys are required.
+
+
+## 📚 Documentation
+
+- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — system overview, module responsibilities, data models, caching strategy, external dependencies, security, and error handling
+- [`docs/PRODUCT_REQUIREMENTS.md`](docs/PRODUCT_REQUIREMENTS.md) — the problem this feature solves, user flow, and acceptance criteria
+- [`docs/CODING_STANDARDS.md`](docs/CODING_STANDARDS.md) — conventions used in this codebase
+- [`CLAUDE.md`](CLAUDE.md) — instructions for AI coding agents working on this repo
+
+
+## 🔒 Privacy
+
+This is a prototype, not a hardened production system. A few things worth knowing before uploading real statements:
+
+- PDF pages and OCR text are sent to the **Google Gemini API** as part of transaction extraction — check your organisation's data-handling policy before uploading real bank statements.
+- Uploaded PDFs are not written to permanent storage: they're held in browser memory while staged, in an auto-deleted temp file during OCR, and in server process memory for the review workspace (cleared on restart) — see `docs/ARCHITECTURE.md` section 6 for the exact lifecycle.
+- The review-workspace caches are process-global, not per-user-session — this app is meant to be run locally by one user at a time, not deployed as a shared multi-user service without further hardening.
 
 
 ## ⚠️ Disclaimer

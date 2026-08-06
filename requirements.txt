@@ -6,3 +6,8 @@ dash-bootstrap-components>=1.6
 pandas>=2.2
 openpyxl>=3.1
 requests>=2.32
+# Renders uploaded PDF pages to images for the review workspace (app.py /
+# src/pdf_review.py). Not a new install cost: python-doctr already depends
+# on pypdfium2 internally to rasterise PDFs for OCR, so this only pins a
+# version we call directly ourselves.
+pypdfium2>=4.30
