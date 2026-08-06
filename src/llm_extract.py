@@ -1,7 +1,7 @@
 """
-Extract structured transactions from bank-statement text using the Gemini API.
+Extract structured transactions from bank-statement text using the DeepSeek API.
 
-What Gemini receives from OCR — raw unstructured plain text containing everything:
+What DeepSeek receives from OCR — raw unstructured plain text containing everything:
   Bank Statement November 2019
   Account Number 12345678
   Date Description Amount
@@ -9,34 +9,40 @@ What Gemini receives from OCR — raw unstructured plain text containing everyth
   Opening Balance 1200.00
   Closing Balance 1122.61
 
-What Gemini reads from that text:
+What DeepSeek reads from that text:
   - date        e.g. "01 Nov 19"         (reads the date pattern on each line)
   - iso_date    e.g. "2019-11-01"        (infers full year from the statement header)
   - description e.g. "TESCO STORES"     (reads the merchant name)
   - amount      e.g. "-62.40"           (negative = debit, positive = credit)
   - currency    e.g. "GBP"              (infers from £/$/€ symbol or explicit text)
 
-What Gemini ignores:
+What DeepSeek ignores:
   - column headers (Date Description Amount)
   - statement headers (Bank Statement November 2019)
   - running totals, opening/closing balances
 """
 from __future__ import annotations
 
+import json
+import os
 from decimal import Decimal
 
-from google import genai
-from google.genai import types
+import requests
 from pydantic import BaseModel
 
 from .parse import Transaction
 
-MODEL = "gemini-2.5-flash"
+MODEL = "deepseek-v4-flash"
+DEFAULT_BASE_URL = "https://api.deepseek.com/v1"
 
 """
-The system prompt is sent to Gemini before the OCR text. It tells Gemini exactly
-what to extract and what to ignore — without this, Gemini might treat column headers
+The system prompt is sent to DeepSeek before the OCR text. It tells DeepSeek exactly
+what to extract and what to ignore — without this, DeepSeek might treat column headers
 ("Date Description Amount") or closing balances as real transactions.
+
+DeepSeek's JSON mode (response_format={"type": "json_object"}) only guarantees the
+reply is *valid JSON*, unlike Gemini's response_schema which constrains the exact
+shape — so the required shape is spelled out in the prompt itself instead.
 """
 SYSTEM_PROMPT = (
     "You extract transaction line items from OCR'd bank statement text. "
@@ -47,18 +53,23 @@ SYSTEM_PROMPT = (
     "(e.g. GBP, USD, EUR), inferring it from symbols like £/$/€ or any explicit text. "
     "For each transaction also resolve its date to ISO 8601 (YYYY-MM-DD) in 'iso_date', "
     "using the statement's year/period (e.g. from the statement header or surrounding "
-    "context) to fill in any year or partial date that isn't explicit on the line itself."
+    "context) to fill in any year or partial date that isn't explicit on the line itself. "
+    "Respond with a single JSON object and nothing else (no markdown, no commentary), "
+    "matching exactly this shape: "
+    '{"currency": "<ISO 4217 code>", "transactions": [{"date": "<as printed on the '
+    'statement>", "iso_date": "<YYYY-MM-DD>", "description": "<merchant>", '
+    '"amount": "<signed decimal string, e.g. -62.40>"}]}'
 )
 
 
 """
 A class is a blueprint — it defines the shape of an object before any real data exists.
 Like a form template: it says what fields must be filled in, but contains no values yet.
-Gemini fills in one copy of this form per transaction found.
+DeepSeek fills in one copy of this form per transaction found.
 
 class 就像一张空白表格（模板）— 规定了有哪些栏位，但还没有填入真实数据。
 就像银行的交易记录表：表格本身不是一笔交易，但每笔交易都按照这张表格填写。
-Gemini 每找到一笔交易，就按这个模板填入真实的日期、描述和金额。
+DeepSeek 每找到一笔交易，就按这个模板填入真实的日期、描述和金额。
 
 Why we use Pydantic:
   Data from outside your code (APIs, AI models) cannot be trusted to be in the right
@@ -66,17 +77,17 @@ Why we use Pydantic:
   is wrong — instead of crashing mysteriously later in your code.
 
 These Pydantic classes do two jobs in this file:
-  Job 1 — Blueprint sent to Gemini: passed as response_schema=ExtractionResult,
-           Pydantic converts these classes into a JSON schema that tells Gemini
-           exactly what fields to include in its response.
-  Job 2 — Parse Gemini's response: response.parsed automatically converts the raw
-           JSON reply into a typed Python object — no manual json.loads() needed.
+  Job 1 — Blueprint described to DeepSeek: its field names/shape are spelled out in
+           SYSTEM_PROMPT so DeepSeek's JSON-mode reply matches what we can validate.
+  Job 2 — Parse DeepSeek's response: ExtractionResult.model_validate() converts the
+           raw JSON reply into a typed Python object, raising a clear error if
+           DeepSeek's reply doesn't match the expected shape.
 """
 class TransactionItem(BaseModel):
     """
     A class (not a function) — it defines the shape of one transaction, not performs an action.
     Think of it as a blank form: it says what fields exist, but contains no real data until
-    Gemini fills it in. One TransactionItem is created per transaction Gemini finds.
+    DeepSeek fills it in. One TransactionItem is created per transaction DeepSeek finds.
     Maps directly to the Transaction dataclass in parse.py.
     """
     date: str         # date as printed on the statement e.g. "01 Nov 19"
@@ -87,19 +98,17 @@ class TransactionItem(BaseModel):
 
 class ExtractionResult(BaseModel):
     """
-    The whole bank statement response from Gemini — one per statement.
+    The whole bank statement response from DeepSeek — one per statement.
     We need two separate classes because they represent different levels:
       ExtractionResult = statement-level (currency applies to the whole statement)
       TransactionItem  = transaction-level (date/description/amount applies to one transaction only)
     Merging them into one class would only allow storing one transaction, losing all others.
     """
     currency: str                        # ISO 4217 currency code e.g. "GBP", "USD" — applies to whole statement
-    transactions: list[TransactionItem]  # all transactions Gemini found in the statement
+    transactions: list[TransactionItem]  # all transactions DeepSeek found in the statement
 
 
-def extract_transactions_llm(
-    text: str, client: genai.Client | None = None,
-) -> tuple[str, list[Transaction]]:
+def extract_transactions_llm(text: str) -> tuple[str, list[Transaction]]:
     """
     'text' is created by result_to_text() in ocr_advanced.py and passed here
     via pipeline.py. It is a newline-separated plain text string where each line
@@ -107,33 +116,44 @@ def extract_transactions_llm(
     OCR produced it by rendering each PDF page into a pixel image, running
     Detection (locates text regions) and Recognition (reads text in each region),
     dropping low-confidence words, and joining everything with \n.
-    That plain text arrives here as 'text' and is sent to Gemini as 'contents=text'.
+    That plain text arrives here as 'text' and is sent to DeepSeek as the user message.
+
+    Reads DEEPSEEK_API_KEY (required) and DEEPSEEK_API_URL (optional, defaults to
+    DeepSeek's public API) from the environment -- see .env / python-dotenv.
     """
-    # genai.Client() reads GEMINI_API_KEY / GOOGLE_API_KEY from the environment.
-    client = client or genai.Client()
+    api_key = os.environ["DEEPSEEK_API_KEY"]
+    base_url = os.environ.get("DEEPSEEK_API_URL", DEFAULT_BASE_URL).rstrip("/")
 
     """
-    Gemini runs on Google's servers, so its response travels over the internet as text.
-    Python tuples and objects cannot travel over a network — only text formats can.
-    We use JSON because it is structured text that code can reliably read and parse.
-      response_mime_type="application/json" — tells Gemini to reply in JSON, not plain sentences like:
+    DeepSeek runs on DeepSeek's servers, so its response travels over the internet as
+    text. Python tuples and objects cannot travel over a network — only text formats
+    can. We use JSON because it is structured text that code can reliably read and
+    parse.
+      response_format={"type": "json_object"} — tells DeepSeek to reply with a single
+        JSON object, not plain sentences like:
         "On 6th November 2019, there was a payment to ARRIVA for £100.36."
         Code cannot reliably extract date/amount/description from prose — every sentence is written differently.
-      response_schema=ExtractionResult     — tells Gemini exactly what fields to include
-    After receiving the JSON, response.parsed converts it into a Python object automatically.
+    After receiving the JSON, ExtractionResult.model_validate() converts it into a
+    Python object, matching what response.parsed did for Gemini.
     """
-    response = client.models.generate_content(
-        model=MODEL,
-        contents=text,
-        config=types.GenerateContentConfig(
-            system_instruction=SYSTEM_PROMPT,
-            response_mime_type="application/json",
-            response_schema=ExtractionResult,
-        ),
+    response = requests.post(
+        f"{base_url}/chat/completions",
+        headers={"Authorization": f"Bearer {api_key}"},
+        json={
+            "model": MODEL,
+            "messages": [
+                {"role": "system", "content": SYSTEM_PROMPT},
+                {"role": "user", "content": text},
+            ],
+            "response_format": {"type": "json_object"},
+            "temperature": 0,
+        },
+        timeout=60,
     )
+    response.raise_for_status()
 
-    # SDK auto-parses the JSON response into our Pydantic model.
-    result: ExtractionResult = response.parsed
+    content = response.json()["choices"][0]["message"]["content"]
+    result = ExtractionResult.model_validate(json.loads(content))
 
     # Convert each LLM-extracted item into the shared Transaction dataclass.
     transactions = [

@@ -61,7 +61,7 @@ def test_date_after_range():
 
 
 def test_blank_date_always_included():
-    # If Gemini couldn't resolve a date, the row should not be silently dropped
+    # If DeepSeek couldn't resolve a date, the row should not be silently dropped
     assert in_date_range("", "2019-11-01", "2019-11-30") is True
 
 

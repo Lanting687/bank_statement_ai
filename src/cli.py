@@ -12,7 +12,7 @@ from .pipeline import extract_transactions
 
 
 def main() -> None:
-    # Load GEMINI_API_KEY (and any other secrets) from .env into the environment.
+    # Load DEEPSEEK_API_KEY (and any other secrets) from .env into the environment.
     load_dotenv()
 
     parser = argparse.ArgumentParser(description=__doc__)
@@ -27,7 +27,7 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    # Full pipeline: docTR OCR -> Gemini structured extraction -> list[Transaction].
+    # Full pipeline: docTR OCR -> DeepSeek structured extraction -> list[Transaction].
     transactions = extract_transactions(args.pdf_path)
     # Keep only debits whose absolute amount meets the threshold.
     payments = filter_payments(transactions, args.threshold)

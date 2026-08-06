@@ -1,8 +1,19 @@
 python-doctr[torch]>=1.0
-google-genai>=1.0
 python-dotenv>=1.0
-dash>=2.18
-dash-bootstrap-components>=1.6
+pydantic>=2.0
 pandas>=2.2
 openpyxl>=3.1
 requests>=2.32
+# Renders uploaded PDF pages to images for OCR (src/ocr_advanced.py calls
+# doctr.io.DocumentFile.from_pdf, which already depends on pypdfium2
+# internally). src/pdf_review.py also calls it directly for page-count
+# validation on upload, so this only pins a version we use ourselves too.
+pypdfium2>=4.30
+# --- Backend API (backend/main.py) ---
+# Replaces Dash as the server side of this app -- see docs/ARCHITECTURE.md.
+fastapi>=0.110
+uvicorn[standard]>=0.29
+python-multipart>=0.0.9
+# fastapi.testclient.TestClient is built on httpx, not requests -- needed
+# to run tests/test_backend_api.py, not by the running app itself.
+httpx>=0.27

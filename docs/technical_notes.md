@@ -18,9 +18,9 @@ Common use cases:
 
 | Situation | Why Pydantic helps |
 |---|---|
-| LLM structured output | Forces Gemini to return a specific JSON schema |
+| LLM structured output | Validates DeepSeek's JSON-mode reply against the exact schema described in the prompt |
 | API responses | Validates and parses JSON from external APIs |
 | User input | Ensures form data has the right types and format |
 | Data pipelines | Ensures data matches expected structure between steps |
 
-In this project, Pydantic does two jobs: sends a JSON schema blueprint to Gemini via `response_schema`, and automatically parses Gemini's JSON response into typed Python objects via `response.parsed`.
+In this project, Pydantic does two jobs: defines the exact shape DeepSeek is told to return (spelled out in the system prompt, since DeepSeek's JSON mode only guarantees valid JSON, not a specific shape), and validates/parses DeepSeek's JSON response into typed Python objects via `ExtractionResult.model_validate()`.
