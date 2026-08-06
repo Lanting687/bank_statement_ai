@@ -45,7 +45,7 @@ output) when page-level OCR was added, by building it on top of a new
 
 ## 5. No external API calls from unit tests
 
-Do not call Gemini, the Frankfurter FX API, or run real docTR/PyTorch
+Do not call DeepSeek, the Frankfurter FX API, or run real docTR/PyTorch
 inference from `tests/`. Mock with `monkeypatch` (see `tests/test_fx.py`
 for the pattern) or use fake/generated data (see `tests/test_ocr_result.py`'s
 fake docTR-tree objects and `tests/test_pdf_review.py`'s in-memory
@@ -81,12 +81,14 @@ pytest tests/ -q
 
 Note for future Claude sessions running in a network-restricted sandbox:
 if `pip install` can't reach the network, at minimum run the tests that
-don't require `dash`/`google-genai`/`doctr` to be installed
+don't require `dash`/`doctr` to be installed
 (`tests/test_filter.py`, `tests/test_fx.py`, `tests/test_parse.py`,
-`tests/test_ocr_result.py`, `tests/test_pdf_review.py` — none of these
-import Dash, Gemini, or docTR at module level), and say explicitly in your
-final report which tests you could and couldn't execute, rather than
-claiming a full pytest run that didn't actually happen.
+`tests/test_ocr_result.py`, `tests/test_pdf_review.py`, `tests/test_llm_extract.py`
+— none of these import Dash or docTR at module level, and `test_llm_extract.py`
+only needs `requests`/`pydantic`, both already required by other lightweight
+modules), and say explicitly in your final report which tests you could and
+couldn't execute, rather than claiming a full pytest run that didn't
+actually happen.
 
 ## 10. Report format
 
@@ -99,7 +101,7 @@ When you finish a task, report:
 - Test results (what actually ran, and how — see note in section 9)
 - Known limitations
 - Manual verification steps the user should still do (e.g. anything that
-  needs a real `GEMINI_API_KEY` or a real docTR install to exercise)
+  needs a real `DEEPSEEK_API_KEY` or a real docTR install to exercise)
 
 ## 11. No unrelated refactors
 

@@ -3,10 +3,10 @@
 ## 1. Product Problem
 
 Before this feature, the Dash app ran OCR and sent the result straight to
-Gemini with no checkpoint in between. Users received structured
+DeepSeek with no checkpoint in between. Users received structured
 transaction output with no page-level way to verify whether OCR accurately
 represented the original PDF. For an audit / bookkeeping tool built around
-"trust but verify," that's the wrong order — Gemini and the user's own
+"trust but verify," that's the wrong order — DeepSeek and the user's own
 threshold/date filtering both trust text that was never checked.
 
 This creates real risks, especially on scanned or low-quality statements:
@@ -38,7 +38,7 @@ relying on the extracted transactions.
 6. Compare each page against its OCR text, watching for the error types
    listed above.
 7. Click **Continue to Extraction** (or **Extract Transactions** in the
-   left-hand controls — both do the same thing) to run Gemini extraction
+   left-hand controls — both do the same thing) to run DeepSeek extraction
    against the reviewed OCR text.
 8. The view switches to the Transactions tab; review the pre-selected
    debit rows, adjust threshold/date range/currency, tick or untick rows.
@@ -56,7 +56,7 @@ relying on the extracted transactions.
 - Responsive layout: side by side at desktop widths, stacked on narrow
   screens.
 - OCR runs once per document and its result is reused for both review and
-  (later) Gemini extraction — never re-run by navigation or re-selection.
+  (later) DeepSeek extraction — never re-run by navigation or re-selection.
 - Clear, plain-language error messages for invalid/corrupt/password-
   protected/empty PDFs and for OCR failures — no raw tracebacks.
 - Existing Excel export continues to work unchanged.
@@ -64,12 +64,12 @@ relying on the extracted transactions.
 
 ## 5. Non-Functional Requirements
 
-- No unnecessary network calls: FX and Gemini are only called for actions
+- No unnecessary network calls: FX and DeepSeek are only called for actions
   that need them (extraction, currency conversion), never as a side effect
   of page navigation or document selection.
 - No repeated OCR during navigation (verified: `navigate_review_page` only
   touches `review-store`'s `current_page` field).
-- No repeated Gemini call during navigation, or on a second click of
+- No repeated DeepSeek call during navigation, or on a second click of
   Extract/Continue for files already extracted (verified:
   `extract_transactions_step` skips filenames already in `processed-store`).
 - Readable at common laptop resolutions (tested layout down to a stacked
@@ -80,13 +80,13 @@ relying on the extracted transactions.
 - Typed Python interfaces: `OCRPage`/`OCRResult`/`PDFDocument` are
   dataclasses; `src/pdf_review.py` functions are fully type-hinted.
 - Testable processing logic: `src/pdf_review.py` and `src/models.py` have
-  no Dash/docTR/Gemini dependency and are unit-tested directly.
+  no Dash/docTR/DeepSeek dependency and are unit-tested directly.
 - Safe treatment of uploaded financial documents: no permanent storage, no
   statement content in logs, no server paths exposed to the browser — see
   `docs/ARCHITECTURE.md` section 6.
 - No API keys required for unit tests: `tests/test_ocr_result.py` uses fake
   docTR-shaped objects; `tests/test_pdf_review.py` uses PDFs generated
-  in-memory with pypdfium2. Neither calls docTR, Gemini, or the network.
+  in-memory with pypdfium2. Neither calls docTR, DeepSeek, or the network.
 
 ## 6. Out of Scope
 
@@ -105,7 +105,9 @@ Explicitly not part of this iteration:
 - Role-based access control
 - Mobile-first PDF annotation
 - Replacing docTR
-- Replacing Gemini
+- Replacing the LLM extraction provider — out of scope for *this* iteration,
+  but done in a later change: extraction now calls DeepSeek instead of
+  Gemini (see `docs/ARCHITECTURE.md` section 5 and `src/llm_extract.py`)
 - Per-session/multi-user cache isolation (see `docs/ARCHITECTURE.md`
   section 4 — the server-side caches are process-global, a known
   prototype-scale limitation, not a hardened multi-user design)
@@ -122,7 +124,7 @@ Explicitly not part of this iteration:
 7. Multi-page PDFs work correctly. ✅ (tested with 1–3 page PDFs)
 8. Multiple uploaded documents can be selected and reviewed independently. ✅
 9. Page navigation does not rerun OCR. ✅ (by construction — see section 5)
-10. Page navigation does not rerun Gemini extraction. ✅ (by construction)
+10. Page navigation does not rerun DeepSeek extraction. ✅ (by construction)
 11. The existing transaction-extraction workflow still works. ✅
     (`extract_statement_from_ocr` feeds the same `processed-store` shape
     `compute_and_render` already consumed)

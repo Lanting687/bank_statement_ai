@@ -96,7 +96,7 @@ def extract_ocr(pdf_path: str, min_confidence: float = MIN_CONFIDENCE) -> OCRRes
     This is what pipeline.py's run_ocr_only() calls, and what the Dash app's
     "Run OCR" step uses: OCR runs exactly once per document and the same
     OCRResult is reused for both the review panel (page by page) and the
-    Gemini extraction step (via .full_text) — see pipeline.py.
+    DeepSeek extraction step (via .full_text) — see pipeline.py.
     """
     result = run_ocr(pdf_path)
     return result_to_ocr_result(result, min_confidence)

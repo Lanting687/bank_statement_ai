@@ -30,9 +30,11 @@ Practical standards for this repository, reflecting how the existing code
   `PasswordProtectedPDFError`, `pdfium.PdfiumError` in `pdf_review._open`).
   Broad `except Exception` is used deliberately in exactly two places
   (`run_ocr_step`, `extract_transactions_step` in `app.py`) because docTR/
-  PyTorch and the Gemini SDK can each raise exception types this codebase
-  doesn't enumerate — both cases log the error per-file and continue,
-  they never swallow it silently.
+  PyTorch can raise exception types this codebase doesn't enumerate, and
+  `extract_transactions_step` also has to catch DeepSeek HTTP errors
+  (`requests.HTTPError`), malformed JSON (`json.JSONDecodeError`), and
+  schema mismatches (Pydantic `ValidationError`) in one place — both cases
+  log the error per-file and continue, they never swallow it silently.
 - Add docstrings to public modules, classes, and non-obvious functions —
   explain *why*, not just *what*, matching the existing style in this
   codebase (see the module docstrings in `ocr_advanced.py`, `pipeline.py`,
@@ -48,7 +50,7 @@ Practical standards for this repository, reflecting how the existing code
   builds the `review_workspace` layout as a module-level value once, then
   callbacks only read/write store data and component props.
 - Avoid large callbacks that perform unrelated actions. `run_ocr_step` does
-  OCR only; `extract_transactions_step` does Gemini extraction only;
+  OCR only; `extract_transactions_step` does DeepSeek extraction only;
   `compute_and_render` does filtering/currency/date/table-building only —
   these are three separate callbacks, not one.
 - Use `prevent_initial_call=True` on any callback that shouldn't fire on
@@ -98,8 +100,9 @@ Practical standards for this repository, reflecting how the existing code
 
 ## Testing
 
-- Tests must not require Gemini credentials — none of the test files
-  import `google.genai` or need `GEMINI_API_KEY` set.
+- Tests must not require DeepSeek credentials or make real HTTP calls to it
+  — `tests/test_llm_extract.py` mocks `llm_extract.requests.post` via
+  `monkeypatch`, the same pattern `tests/test_fx.py` uses for the FX API.
 - Tests must not make real FX API calls — `tests/test_fx.py` mocks
   `fx.requests.get` / `fx.get_rate` via `monkeypatch`.
 - Mock external services rather than skipping coverage for them.

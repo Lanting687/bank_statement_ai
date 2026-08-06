@@ -13,7 +13,7 @@ def filter_payments(transactions: list[Transaction], threshold: Decimal) -> list
 
 def in_date_range(iso_date: str, start_date: str | None, end_date: str | None) -> bool:
     # ISO 8601 (YYYY-MM-DD) strings compare correctly lexicographically.
-    # If Gemini couldn't resolve a date, don't exclude the row silently.
+    # If DeepSeek couldn't resolve a date, don't exclude the row silently.
     if not iso_date or len(iso_date) != 10:
         return True
     if start_date and iso_date < start_date:

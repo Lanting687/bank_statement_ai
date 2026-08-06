@@ -2,7 +2,7 @@
 filter transactions, export to Excel.
 
 Workflow: upload -> Run OCR -> review PDF/OCR side by side -> Extract
-Transactions (Gemini) -> filter/review transactions -> export.
+Transactions (DeepSeek) -> filter/review transactions -> export.
 
 Server-side caches (see _PDF_CACHE / _OCR_CACHE / _PAGE_IMAGE_CACHE below):
 uploaded PDF bytes, OCR results, and rendered page images are kept in
@@ -41,7 +41,7 @@ CURRENCY_OPTIONS = ["AUTO", "GBP", "USD", "EUR", "JPY", "AUD", "CAD", "CHF", "CN
 
 # Server-side, process-lifetime caches keyed by document_id (a content hash,
 # not a filesystem path -- see src/pdf_review.make_document_id). Holds the
-# decoded PDF bytes, the OCRResult, and rendered page images so OCR/Gemini
+# decoded PDF bytes, the OCRResult, and rendered page images so OCR/DeepSeek
 # never re-run and pages aren't re-rendered on every navigation click.
 # Prototype-scale only: in-process memory, cleared on restart, shared across
 # any browser session connected to this process. Not safe for a multi-worker
@@ -180,7 +180,7 @@ app.layout = dbc.Container(
         # Which document is selected in the review workspace right now.
         dcc.Store(id="review-active-store", data={}),
         # Raw extraction cache: {filename: {"source_currency", "transactions"}}.
-        # Only written by extract_transactions_step (Gemini) -- never touched
+        # Only written by extract_transactions_step (DeepSeek) -- never touched
         # by threshold/currency changes, so re-filtering never re-runs extraction.
         dcc.Store(id="processed-store", data={}),
         # Derived, recomputed any time processed-store / threshold / currency
@@ -225,10 +225,10 @@ def stage_uploads(contents_list, filename_list, uploads):
     prevent_initial_call=True,
 )
 def run_ocr_step(_n_clicks, uploads, review):
-    # OCR only -- no Gemini call here, so re-running this never re-triggers
+    # OCR only -- no DeepSeek call here, so re-running this never re-triggers
     # transaction extraction. Runs once per uploaded file; the resulting
     # OCRResult is cached in _OCR_CACHE and reused by both the review panel
-    # (page by page) and, later, extract_transactions_step (Gemini).
+    # (page by page) and, later, extract_transactions_step (DeepSeek).
     review = dict(review or {})
     log_lines = []
 
@@ -308,7 +308,7 @@ def set_active_document(doc_id):
 )
 def navigate_review_page(_prev, _next, active, review):
     # Page navigation only ever updates an integer in review-store; it never
-    # touches _OCR_CACHE or calls OCR/Gemini/FX.
+    # touches _OCR_CACHE or calls OCR/DeepSeek/FX.
     review = dict(review or {})
     doc_id = (active or {}).get("document_id")
     if not doc_id or doc_id not in review:
@@ -391,10 +391,10 @@ def render_review_panels(active, review):
     prevent_initial_call=True,
 )
 def extract_transactions_step(_n1, _n2, review, processed):
-    # Gemini extraction, run once per document against its cached OCRResult
+    # DeepSeek extraction, run once per document against its cached OCRResult
     # -- never re-runs OCR, and skips any file already in processed-store so
     # clicking either "Extract Transactions" or "Continue to Extraction"
-    # again doesn't re-call Gemini for files already extracted.
+    # again doesn't re-call DeepSeek for files already extracted.
     processed = dict(processed or {})
     review = review or {}
     log_lines = []

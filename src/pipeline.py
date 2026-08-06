@@ -3,15 +3,15 @@ Connect ocr_advanced.py and llm_extract.py into one single entry point.
 
 Without pipeline.py, every caller (the UI and the CLI) would have to repeat
 the same steps themselves. Instead, callers use one of the functions below
-and pipeline.py handles the connection between OCR and Gemini internally.
+and pipeline.py handles the connection between OCR and DeepSeek internally.
 
-OCR and Gemini extraction are exposed as two separate steps
+OCR and DeepSeek extraction are exposed as two separate steps
 (run_ocr_only / extract_statement_from_ocr) as well as one combined call
-(extract_statement). The review workspace in app.py needs OCR and Gemini
+(extract_statement). The review workspace in app.py needs OCR and DeepSeek
 decoupled: OCR runs once when the user starts a review, its OCRResult is
-cached and reused for both page-by-page review and (later) Gemini
+cached and reused for both page-by-page review and (later) DeepSeek
 extraction, so navigating pages or re-viewing a document never re-runs OCR
-or calls Gemini again. The CLI doesn't need that split, so it still calls
+or calls DeepSeek again. The CLI doesn't need that split, so it still calls
 extract_statement()/extract_transactions() exactly as before.
 """
 from __future__ import annotations
@@ -23,7 +23,7 @@ from .parse import Transaction
 
 
 def run_ocr_only(pdf_path: str) -> OCRResult:
-    """Run OCR and return the page-aware result, without calling Gemini.
+    """Run OCR and return the page-aware result, without calling DeepSeek.
 
     Used by the Dash review workspace's "Run OCR" step: the OCRResult it
     returns is cached (in a serializable form) and reused both for the
@@ -33,7 +33,7 @@ def run_ocr_only(pdf_path: str) -> OCRResult:
 
 
 def extract_statement_from_ocr(ocr_result: OCRResult) -> tuple[str, list[Transaction]]:
-    """Run Gemini extraction against an already-computed OCRResult.
+    """Run DeepSeek extraction against an already-computed OCRResult.
 
     Takes OCRResult rather than a path so this never re-runs OCR — the
     caller must have already run run_ocr_only() (or extract_statement()
@@ -45,7 +45,7 @@ def extract_statement_from_ocr(ocr_result: OCRResult) -> tuple[str, list[Transac
 def extract_statement(pdf_path: str) -> tuple[str, list[Transaction]]:
     """Returns (currency, transactions) for the given PDF.
 
-    Full pipeline in one call: OCR then Gemini. Kept for the CLI and as a
+    Full pipeline in one call: OCR then DeepSeek. Kept for the CLI and as a
     convenience for any caller that doesn't need the review workspace's
     two-step split.
     """

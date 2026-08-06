@@ -2,11 +2,11 @@
 Shared typed data models for OCR review.
 
 Why this module exists: ocr_advanced.py used to hand back a single flattened
-string (all pages concatenated). That is fine for Gemini (which just wants
+string (all pages concatenated). That is fine for DeepSeek (which just wants
 the whole document as text) but it throws away page boundaries, so the
 review workspace has nothing to align against the PDF page currently on
 screen. OCRPage/OCRResult keep the per-page boundary while still exposing a
-`full_text` property so every existing caller (Gemini extraction, the CLI)
+`full_text` property so every existing caller (DeepSeek extraction, the CLI)
 keeps working unchanged.
 """
 from __future__ import annotations
@@ -31,7 +31,7 @@ class OCRResult:
     """OCR output for an entire document, page by page.
 
     Built once per document (after the expensive docTR pass) and reused for
-    both the page-by-page review panel and the combined text sent to Gemini,
+    both the page-by-page review panel and the combined text sent to DeepSeek,
     so OCR never has to run twice for the same file.
     """
 
@@ -39,7 +39,7 @@ class OCRResult:
 
     @property
     def full_text(self) -> str:
-        """All pages flattened into one string, for Gemini and the CLI.
+        """All pages flattened into one string, for DeepSeek and the CLI.
 
         Pages with no recognised text are skipped so this reproduces the
         exact string the old single-pass result_to_text() used to return

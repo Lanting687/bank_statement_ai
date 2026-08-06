@@ -10,7 +10,7 @@ Bank Statement AI has three entry points sharing one processing pipeline:
 
 - **Dash web app** (`app.py`) — the primary interface. Upload one or more
   PDFs, run OCR, review the OCR output against the original page, extract
-  transactions with Gemini, filter/select them, and export to Excel.
+  transactions with DeepSeek, filter/select them, and export to Excel.
 - **CLI** (`src/cli.py`) — a single-file, non-interactive path: PDF in,
   filtered CSV/JSON out. Used for scripting; has no review step.
 - **Shared pipeline** (`src/`) — OCR, LLM extraction, filtering, FX
@@ -24,7 +24,7 @@ flowchart LR
     B --> C[docTR OCR<br/>src/ocr_advanced.py]
     C --> D[OCRResult: page 1..N<br/>src/models.py]
     D --> E[Review Workspace<br/>PDF page image + OCR text, side by side]
-    E -->|user clicks Extract Transactions| F[Gemini Extraction<br/>src/llm_extract.py]
+    E -->|user clicks Extract Transactions| F[DeepSeek Extraction<br/>src/llm_extract.py]
     F --> G[Pydantic Validation<br/>ExtractionResult]
     G --> H[Transaction dataclass<br/>src/parse.py]
     H --> I[Debit + Threshold + Date Filtering<br/>src/filter.py]
@@ -39,11 +39,11 @@ There are now two human-in-the-loop checkpoints, not one:
 
 1. **OCR review** (new): after OCR runs, the user compares each PDF page
    against the text docTR extracted from it, before that text is ever sent
-   to Gemini. This is the feature this document describes.
-2. **Transaction review** (existing): after Gemini extraction, the user
+   to DeepSeek. This is the feature this document describes.
+2. **Transaction review** (existing): after DeepSeek extraction, the user
    ticks/unticks pre-selected rows before exporting.
 
-Splitting these two checkpoints means Gemini is only ever called once the
+Splitting these two checkpoints means DeepSeek is only ever called once the
 user has (optionally) sanity-checked the OCR text it will read — see
 section 4 ("Primary Objective") in the original feature brief.
 
@@ -56,8 +56,8 @@ section 4 ("Primary Objective") in the original feature brief.
 | `src/pdf_review.py` | **New.** Decodes an uploaded PDF (`decode_upload`), validates it and computes page count / a stable content-hash id (`load_document`), and renders a single page to a PNG for the browser (`render_page_png_base64`). Everything operates on in-memory bytes; nothing is written to disk. Raises typed errors (`InvalidPDFError`, `PasswordProtectedPDFError`, `PageOutOfRangeError`) instead of leaking pypdfium2 exceptions or raw tracebacks to the UI. |
 | `src/models.py` | **New.** `OCRPage` / `OCRResult` — the page-aware OCR data model shared by `ocr_advanced.py`, `pipeline.py`, and `app.py`. |
 | `src/ocr_advanced.py` | Runs docTR OCR (`run_ocr`, unchanged) and flattens the result. `result_to_ocr_result()` (new) builds an `OCRResult` with one `OCRPage` per PDF page. `result_to_text()` (existing signature, now implemented on top of `result_to_ocr_result`) and `extract_ocr()` (new convenience wrapper) sit alongside it — see section 3 for why both exist. docTR/PyTorch imports stay function-local inside `run_ocr()`, so importing this module (or `app.py`) never loads either library — they only load when OCR actually runs. |
-| `src/llm_extract.py` | Sends OCR text to Gemini 2.5 Flash with a Pydantic response schema, returns `(currency, list[Transaction])`. Unchanged by this feature. |
-| `src/pipeline.py` | Composes the above. Now exposes OCR and Gemini as separable steps (`run_ocr_only`, `extract_statement_from_ocr`) as well as the original combined call (`extract_statement`, `extract_transactions`) that the CLI still uses unmodified. |
+| `src/llm_extract.py` | Sends OCR text to DeepSeek (`deepseek-v4-flash`) via a plain HTTP POST (`requests`), asking for JSON-mode output matching a shape spelled out in the system prompt, and validates the reply with a Pydantic model (`ExtractionResult.model_validate()`), returns `(currency, list[Transaction])`. Originally used Google Gemini via the `google-genai` SDK; switched to DeepSeek in a later change — the public function signature and return type are unchanged. |
+| `src/pipeline.py` | Composes the above. Now exposes OCR and DeepSeek as separable steps (`run_ocr_only`, `extract_statement_from_ocr`) as well as the original combined call (`extract_statement`, `extract_transactions`) that the CLI still uses unmodified. |
 | `src/parse.py` | `Transaction` dataclass. Unchanged. |
 | `src/filter.py` | Debit/threshold and date-range filtering. Unchanged. |
 | `src/fx.py` | Frankfurter FX lookup with an lru_cache and a 1:1 fallback on failure. Unchanged. |
@@ -68,7 +68,7 @@ section 4 ("Primary Objective") in the original feature brief.
 ### `Transaction` (`src/parse.py`, unchanged)
 
 One line item: `date`, `description`, `amount` (signed `Decimal`), `raw_line`,
-`iso_date`, and an `is_debit` property. This is the model Gemini extraction,
+`iso_date`, and an `is_debit` property. This is the model DeepSeek extraction,
 filtering, FX conversion, and export all share.
 
 ### `OCRPage` / `OCRResult` (`src/models.py`, new)
@@ -84,7 +84,7 @@ class OCRResult:
     pages: tuple[OCRPage, ...]
 
     @property
-    def full_text(self) -> str: ...   # pages joined for Gemini / the CLI
+    def full_text(self) -> str: ...   # pages joined for DeepSeek / the CLI
 
     @property
     def page_count(self) -> int: ...
@@ -168,14 +168,14 @@ that image and that page's OCR text back.
 uploaded twice gets the same id and reuses the same cache entries; the id
 reveals nothing about the original filename or any server path.
 
-**Repeated OCR/Gemini calls are prevented by construction, not just by
+**Repeated OCR/DeepSeek calls are prevented by construction, not just by
 convention:**
 - Page navigation (`navigate_review_page`) only mutates an integer
   (`current_page`) inside `review-store`. It never touches `_OCR_CACHE` and
   never imports `ocr_advanced` or `llm_extract`.
 - `extract_transactions_step` skips any file whose name is already a key in
   `processed-store`, so clicking "Extract Transactions" or "Continue to
-  Extraction" again after a successful run doesn't re-call Gemini.
+  Extraction" again after a successful run doesn't re-call DeepSeek.
 - `render_review_panels` only re-renders an already-rendered page if
   `_PAGE_IMAGE_CACHE` doesn't have that `(document_id, page)` key yet.
 
@@ -194,7 +194,7 @@ iteration — see `docs/PRODUCT_REQUIREMENTS.md` section "Out of Scope."
 
 | Dependency | Used for | Failure / fallback behaviour |
 |---|---|---|
-| Google Gemini (`google-genai`) | Structured transaction extraction from OCR text | No fallback — extraction for that file fails; the error is caught per-file in `extract_transactions_step` and shown in the status log, other files still process. Requires `GEMINI_API_KEY`. |
+| DeepSeek (`requests`, JSON mode) | Structured transaction extraction from OCR text | No fallback — extraction for that file fails; the error is caught per-file in `extract_transactions_step` and shown in the status log, other files still process. Requires `DEEPSEEK_API_KEY`; `DEEPSEEK_API_URL` optionally overrides the default base URL (`https://api.deepseek.com/v1`). |
 | Frankfurter API (`requests`) | Live FX conversion | On any exception, `fx.convert()` returns the original amount unchanged plus a warning string (1:1 fallback), rather than failing the whole extraction — unchanged by this feature. |
 | docTR (`python-doctr[torch]`) | OCR | No fallback — if the model fails to load or run, the exception is caught in `run_ocr_step` and recorded as an `ocr_status: "error"` entry for that file; other files still process. Imports are function-local so a broken/missing docTR install doesn't prevent the rest of the app from loading. |
 | pypdfium2 | Rendering PDF pages to images for the review panel, and (indirectly, via docTR) rasterising pages for OCR | Corrupt/empty/password-protected input raises a typed `PDFReviewError` subclass (see section 7) instead of propagating a raw `PdfiumError`. |
@@ -241,7 +241,7 @@ weight — see the comment in `requirements.txt`.
 | Empty PDF (0 bytes or 0 pages) | `InvalidPDFError` ("Uploaded file is empty." / "PDF has no pages."). |
 | OCR failure (docTR/PyTorch exception, including docTR not being installed) | Caught by a broad `except Exception` in `run_ocr_step` (deliberately broad — docTR/PyTorch can raise many exception types we can't enumerate); recorded per-file as `ocr_status: "error"`, not swallowed, not fatal to other files. |
 | Page-rendering failure | `render_page_png_base64` raises `PageOutOfRangeError` for a bad page number; `render_review_panels` catches any `PDFReviewError` from rendering and shows no image rather than crashing the callback. |
-| Gemini failure / schema-validation failure | Caught per-file in `extract_transactions_step`; logged as `"✗ {filename}: {exc}"`, other files still process. |
+| DeepSeek failure / schema-validation failure | Caught per-file in `extract_transactions_step`; logged as `"✗ {filename}: {exc}"`, other files still process. |
 | FX API failure | `fx.convert()` returns the original amount with a warning string (unchanged). |
 | Export failure | Not specifically handled beyond existing pandas/openpyxl exceptions; out of scope for this iteration. |
 

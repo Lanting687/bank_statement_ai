@@ -9,11 +9,11 @@
 ![Python](https://img.shields.io/badge/Python-3.11-blue)
 ![Dash](https://img.shields.io/badge/Dash-Web%20UI-008DE5)
 ![OCR](https://img.shields.io/badge/OCR-docTR-purple)
-![Gemini](https://img.shields.io/badge/Google-Gemini-yellow)
+![DeepSeek](https://img.shields.io/badge/DeepSeek-AI%20Extraction-blue)
 ![Pydantic](https://img.shields.io/badge/Pydantic-Structured%20Output-E92063)
 ![Excel](https://img.shields.io/badge/Export-Excel-217346)
 ![Status](https://img.shields.io/badge/Status-Prototype-orange)
-![Tests](https://img.shields.io/badge/Tests-44%20passed-brightgreen)
+![Tests](https://img.shields.io/badge/Tests-47%20passed-brightgreen)
 
 [Demo](#-demo) · [Pain Point](#-pain-point) · [Key Features](#-key-features) · [How It Works](#️-how-it-works) · [Getting Started](#-getting-started) · [Testing](#-testing) · [Documentation](#-documentation) · [Privacy](#-privacy) · [Disclaimer](#️-disclaimer)
 
@@ -37,8 +37,8 @@
 ## ✨ Key Features
 
 - **Multi-PDF upload** — drag and drop one or more bank statements at once
-- **OCR review workspace** — before anything is sent to Gemini, see the original PDF page and the OCR-extracted text for it side by side, so you can catch OCR mistakes (misread amounts, dropped minus signs, wrong dates) up front
-- **AI-powered extraction** — automatically reads transactions from different PDF layouts using OCR and Gemini
+- **OCR review workspace** — before anything is sent to DeepSeek, see the original PDF page and the OCR-extracted text for it side by side, so you can catch OCR mistakes (misread amounts, dropped minus signs, wrong dates) up front
+- **AI-powered extraction** — automatically reads transactions from different PDF layouts using OCR and DeepSeek
 - **Debits only** — filters out credits so you only review payments out
 - **Smart pre-selection** — rows above your minimum amount threshold are automatically ticked, so you only sense-check rather than select from scratch
 - **Date range filter** — narrow the visible transactions to a specific period
@@ -54,8 +54,8 @@
 | Web Interface | Dash | The browser UI — upload PDFs, set filters, review and download results |
 | OCR | docTR | Reads text from each PDF page |
 | PDF Page Rendering | pypdfium2 | Renders each PDF page as an image for the side-by-side review panel (already a docTR dependency, so this adds no new install weight) |
-| AI Extraction | Gemini 2.5 Flash | Understands the text and picks out each transaction (date, amount, description, currency) |
-| Data Validation | Pydantic | Ensures Gemini always returns data in the exact format the app expects |
+| AI Extraction | DeepSeek (`deepseek-v4-flash`) | Understands the text and picks out each transaction (date, amount, description, currency) |
+| Data Validation | Pydantic | Ensures DeepSeek's JSON-mode reply always matches the exact format the app expects |
 | Currency Conversion | Frankfurter API | Converts amounts to your chosen currency using live exchange rates |
 | Export | pandas + openpyxl | Saves the selected transactions into an Excel file |
 
@@ -78,12 +78,12 @@ Plain Text (newline-separated, one line per text line, kept page by page)
 Review Workspace (Dash Web UI)
         │  Original PDF page and OCR text shown side by side
         │  Navigate page by page, per document
-        │  Catches OCR errors before Gemini ever sees the text
+        │  Catches OCR errors before DeepSeek ever sees the text
         ▼
 User clicks "Extract Transactions" / "Continue to Extraction"
         │
         ▼
-Gemini 2.5 Flash
+DeepSeek (deepseek-v4-flash)
         │  Reads the plain text via system prompt instructions
         │  Ignores headers, totals, and summary lines
         │  Returns validated structured JSON
@@ -129,14 +129,15 @@ pip install -r requirements.txt
 pytest tests/ -q
 ```
 
-### 4. Get a Gemini API key
+### 4. Get a DeepSeek API key
 
 1. Go to [Google AI Studio](https://aistudio.google.com/app/apikey)
 2. Click **Create API key**
 3. Create a `.env` file in the project root and add your key:
 
 ```
-GEMINI_API_KEY=your_key_here
+DEEPSEEK_API_KEY=your_key_here
+DEEPSEEK_API_URL=https://api.deepseek.com/v1
 ```
 
 ### 5. Run the app
@@ -150,10 +151,10 @@ Open [http://127.0.0.1:8050](http://127.0.0.1:8050) in your browser.
 ### 6. Use the app
 
 1. Drag and drop one or more bank statement PDFs into the upload zone (sample statements are available in the `samples/` folder)
-2. Click **Run OCR** — this reads each PDF's text once and does *not* call Gemini yet
+2. Click **Run OCR** — this reads each PDF's text once and does *not* call DeepSeek yet
 3. In the **Review OCR** tab, pick a document from the dropdown, and use **Previous** / **Next** to page through it, comparing the original PDF page (left) against the OCR text for that page (right)
 4. Set your **minimum payment amount**, and optionally a **date range** and **display currency**
-5. Click **Extract Transactions** (in the left panel) or **Continue to Extraction** (at the bottom of the Review OCR tab) — either runs Gemini extraction against the OCR text you just reviewed, and switches to the **Transactions** tab
+5. Click **Extract Transactions** (in the left panel) or **Continue to Extraction** (at the bottom of the Review OCR tab) — either runs DeepSeek extraction against the OCR text you just reviewed, and switches to the **Transactions** tab
 6. Review the pre-selected transactions — tick or untick as needed
 7. Click **Download Excel** to export the selected rows
 
@@ -166,7 +167,7 @@ Re-clicking Run OCR or Extract Transactions never re-processes a file that's alr
 pytest tests/ -q
 ```
 
-Covers debit filtering, date-range logic, currency conversion, page-level OCR result handling, and PDF decode/validate/render logic (using PDFs generated in-memory, not committed files) — 44 tests in total. No network calls or API keys are required.
+Covers debit filtering, date-range logic, currency conversion, page-level OCR result handling, PDF decode/validate/render logic (using PDFs generated in-memory, not committed files), and DeepSeek request/response handling (mocked HTTP) — 47 tests in total. No network calls or API keys are required.
 
 
 ## 📚 Documentation
@@ -181,7 +182,7 @@ Covers debit filtering, date-range logic, currency conversion, page-level OCR re
 
 This is a prototype, not a hardened production system. A few things worth knowing before uploading real statements:
 
-- PDF pages and OCR text are sent to the **Google Gemini API** as part of transaction extraction — check your organisation's data-handling policy before uploading real bank statements.
+- PDF pages and OCR text are sent to the **DeepSeek API** as part of transaction extraction — check your organisation's data-handling policy before uploading real bank statements.
 - Uploaded PDFs are not written to permanent storage: they're held in browser memory while staged, in an auto-deleted temp file during OCR, and in server process memory for the review workspace (cleared on restart) — see `docs/ARCHITECTURE.md` section 6 for the exact lifecycle.
 - The review-workspace caches are process-global, not per-user-session — this app is meant to be run locally by one user at a time, not deployed as a shared multi-user service without further hardening.
 
@@ -190,4 +191,4 @@ This is a prototype, not a hardened production system. A few things worth knowin
 
 This is a portfolio prototype. AI-generated results must be reviewed and approved by the user before export.
 
-PDF processing sends extracted transaction data to the Google Gemini API. Users should check their organisation's data privacy and confidentiality requirements before using real bank statements.
+PDF processing sends extracted transaction data to the DeepSeek API. Users should check their organisation's data privacy and confidentiality requirements before using real bank statements.
