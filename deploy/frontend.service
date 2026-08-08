@@ -1,0 +1,30 @@
+# systemd unit for the Next.js frontend, run in production mode
+# (`npm run start` against the output of `npm run build`).
+#
+# Install: sudo cp deploy/frontend.service /etc/systemd/system/bank-statement-frontend.service
+# Then:    sudo systemctl daemon-reload
+#          sudo systemctl enable --now bank-statement-frontend
+#
+# Requires the backend service to be up first, since next.config.js's
+# rewrites() proxies /api/* to BACKEND_URL. Run `npm run build` in
+# frontend/ before starting this (see deploy/DEPLOY.md) -- `npm run start`
+# serves the prebuilt .next output, it doesn't build on its own.
+
+[Unit]
+Description=Bank Statement AI - Next.js frontend
+After=network.target bank-statement-backend.service
+Requires=bank-statement-backend.service
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/home/ubuntu/bank_statement_ai/frontend
+Environment=NODE_ENV=production
+Environment=PORT=3000
+Environment=BACKEND_URL=http://127.0.0.1:8000
+ExecStart=/usr/bin/npm run start
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

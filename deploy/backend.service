@@ -1,0 +1,26 @@
+# systemd unit for the FastAPI backend (backend/main.py).
+#
+# Install: sudo cp deploy/backend.service /etc/systemd/system/bank-statement-backend.service
+# Then:    sudo systemctl daemon-reload
+#          sudo systemctl enable --now bank-statement-backend
+#
+# Assumes the repo is cloned to /home/ubuntu/bank_statement_ai with a
+# venv at /home/ubuntu/bank_statement_ai/venv (see deploy/DEPLOY.md).
+# Binds to 127.0.0.1 only -- Caddy is the only thing that should reach it
+# from outside, via the Next.js /api/* rewrite -> BACKEND_URL.
+
+[Unit]
+Description=Bank Statement AI - FastAPI backend
+After=network.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/home/ubuntu/bank_statement_ai
+EnvironmentFile=/home/ubuntu/bank_statement_ai/.env
+ExecStart=/home/ubuntu/bank_statement_ai/venv/bin/uvicorn backend.main:app --host 127.0.0.1 --port 8000
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
