@@ -5,3 +5,7 @@ out
 .env.local
 *.tsbuildinfo
 next-env.d.ts
+
+# Copied from node_modules/pdfjs-dist by scripts/copy-pdf-worker.js
+# (postinstall) -- regenerated on every `npm install`, not source.
+public/pdf.worker.min.mjs
