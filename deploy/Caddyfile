@@ -1,0 +1,25 @@
+# Caddy reverse proxy config. Caddy terminates TLS (auto-renewing
+# Let's Encrypt certs) and forwards everything to the Next.js frontend on
+# :3000, which itself proxies /api/* to the FastAPI backend on :8000 (see
+# frontend/next.config.js) -- so Caddy only ever needs to know about one
+# upstream port.
+#
+# Install: sudo cp deploy/Caddyfile /etc/caddy/Caddyfile
+#          (edit the domain below first)
+# Then:    sudo systemctl reload caddy
+#
+# --- If you have a domain pointed at this instance's static IP ---
+# Replace your-domain.com below and delete the ":80 { ... }" block further
+# down. Caddy will automatically obtain and renew a Let's Encrypt cert --
+# no other config needed, and no port 443 rule to write by hand.
+
+your-domain.com {
+    reverse_proxy localhost:3000
+}
+
+# --- If you don't have a domain yet, use this instead (HTTP only, no TLS) ---
+# Delete the domain block above and uncomment this one:
+#
+# :80 {
+#     reverse_proxy localhost:3000
+# }
