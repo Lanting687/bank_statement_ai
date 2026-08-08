@@ -43,10 +43,15 @@ export function PdfPageViewer({ file, page }: { file: File | null; page: number 
         const pdfjsLib = await import("pdfjs-dist");
 
         if (!workerConfigured) {
-          pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
-            "pdfjs-dist/build/pdf.worker.min.mjs",
-            import.meta.url,
-          ).toString();
+          // Served as a plain static file from public/ (copied there by the
+          // "postinstall" script in package.json) rather than bundled via
+          // `new URL(..., import.meta.url)`. That pattern works in `next
+          // dev`, but in a production `next build`, Next.js runs the
+          // resulting chunk through Terser -- and pdfjs-dist ships this
+          // worker as a real ES module (import/export), which Terser's
+          // default script parser can't handle, so the build fails. Routing
+          // it through public/ keeps webpack from touching the file at all.
+          pdfjsLib.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
           workerConfigured = true;
         }
 
