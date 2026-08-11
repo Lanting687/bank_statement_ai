@@ -21,7 +21,14 @@ export class ApiError extends Error {
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(path, init);
+  // credentials: "include" makes sure the session cookie the backend
+  // issues (see backend/main.py's get_session_id, which is what keeps
+  // your documents separate from any other visitor's) is sent even in the
+  // direct-cross-origin fallback case (e.g. a frontend dev server on a
+  // different port than the backend). The normal same-origin path
+  // (browser -> Next.js -> rewrite -> backend) already sends it by
+  // default, so this is a no-op there.
+  const res = await fetch(path, { ...init, credentials: "include" });
   if (!res.ok) {
     let detail = res.statusText;
     try {
@@ -72,6 +79,7 @@ export async function exportExcel(body: ExportRequest): Promise<Blob> {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
+    credentials: "include", // see the comment in request() above
   });
   if (!res.ok) {
     throw new ApiError(res.status, res.statusText);

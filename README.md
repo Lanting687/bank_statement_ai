@@ -14,7 +14,7 @@
 ![Tailwind](https://img.shields.io/badge/Tailwind%20CSS-UI-38B2AC)
 ![Excel](https://img.shields.io/badge/Export-Excel-217346)
 ![Status](https://img.shields.io/badge/Status-Prototype-orange)
-![Tests](https://img.shields.io/badge/Tests-47%20passed%20%2B%20backend%20suite-brightgreen)
+![Tests](https://img.shields.io/badge/Tests-67%20passed-brightgreen)
 
 [Demo](#-demo) · [Pain Point](#-pain-point) · [Key Features](#-key-features) · [How It Works](#️-how-it-works) · [Getting Started](#-getting-started) · [Testing](#-testing) · [Documentation](#-documentation) · [Privacy](#-privacy) · [Disclaimer](#️-disclaimer)
 
@@ -223,7 +223,8 @@ This is a prototype, not a hardened production system. A few things worth knowin
 
 - PDF pages and OCR text are sent to the **DeepSeek API** as part of transaction extraction — check your organisation's data-handling policy before uploading real bank statements.
 - Uploaded PDFs are not written to permanent storage: they exist in the browser's memory, in an auto-deleted temp file during OCR, and in the backend process's memory for the review workspace (cleared on restart) — see `docs/ARCHITECTURE.md` section 6 for the exact lifecycle.
-- The backend's document store is process-global, not per-user-session — this app is meant to be run locally by one user at a time, not deployed as a shared multi-user service without further hardening.
+- The backend keeps each visitor's documents separate using a session cookie (`bsai_session`, httpOnly, no personal data) — one visitor cannot see or affect another visitor's uploaded statements. This still runs as a single process (see `deploy/backend.service`), so it does not scale across multiple worker processes or horizontally — see `docs/ARCHITECTURE.md` section 4.
+- Optional Google Analytics (standard page-view tracking only, opt-in via `NEXT_PUBLIC_GA_ID` — see `deploy/DEPLOY.md`) is added in `frontend/app/layout.tsx`. It never sees PDF, OCR, or transaction content — that data stays server-side (`backend/store.py`) and is never passed to the analytics script.
 
 
 ## ⚠️ Disclaimer

@@ -10,11 +10,24 @@ Next.js frontend there is no equivalent of `dcc.Store` -- the frontend is
 stateless between requests -- so *all* per-document state now lives here,
 addressed by `document_id`, and the frontend just asks for what it needs.
 
-Same prototype-scale caveat as the Dash version: this is one process-global
-dict, not session-scoped. Fine for one local user running `uvicorn` and
-`next dev` on their own machine; not safe for concurrent multi-user
-deployment without further work (per-session keys, eviction, a real cache)
--- see docs/ARCHITECTURE.md.
+Session-scoped as of this change: every entry is keyed by
+`(session_id, document_id)`, not `document_id` alone. Before this, the
+store was a single flat dict shared by every visitor to a deployment --
+anyone hitting `GET /api/documents` saw every document anyone had ever
+uploaded, and two people uploading the same file (same content hash, see
+`src/pdf_review.make_document_id`) would silently overwrite each other's
+state. `session_id` comes from an httpOnly cookie issued by
+`backend/main.py`'s `get_session_id()` dependency, one per browser, so each
+visitor now only ever sees and can only ever affect their own documents.
+See docs/ARCHITECTURE.md for the full writeup.
+
+Remaining prototype-scale caveat: this is still one process-global dict in
+one process's memory -- fine for a single `uvicorn` worker (the systemd
+deploy in deploy/backend.service runs exactly one), but it does not extend
+to multiple worker processes or horizontally-scaled instances, which would
+each hold their own separate store with no shared state between them. That
+would need an external store (Redis, a database) -- out of scope for this
+change, see docs/ARCHITECTURE.md.
 """
 from __future__ import annotations
 
@@ -61,7 +74,7 @@ class DocumentState:
 
 
 class DocumentStore:
-    """Dict of DocumentState keyed by document_id, behind a lock.
+    """Dict of DocumentState keyed by (session_id, document_id), behind a lock.
 
     uvicorn's default worker runs one asyncio event loop, and FastAPI runs
     blocking `def` route handlers (OCR, DeepSeek calls) in a thread pool --
@@ -69,29 +82,36 @@ class DocumentStore:
     The lock is intentionally coarse-grained: this store is small and
     every operation is fast (dict get/set), so a single lock is simpler and
     safe, not a bottleneck worth optimising away in a prototype.
+
+    Every method takes `session_id` as its first argument -- callers (all
+    in backend/main.py) get it from the `get_session_id` dependency, never
+    from anything the client can directly claim to be (it's read from an
+    httpOnly cookie the server itself issued), so one visitor cannot simply
+    assert a different session_id to reach another visitor's documents.
     """
 
     def __init__(self) -> None:
         self._lock = threading.Lock()
-        self._documents: dict[str, DocumentState] = {}
+        self._documents: dict[tuple[str, str], DocumentState] = {}
 
-    def put(self, document: DocumentState) -> None:
+    def put(self, session_id: str, document: DocumentState) -> None:
         with self._lock:
-            self._documents[document.document_id] = document
+            self._documents[(session_id, document.document_id)] = document
 
-    def get(self, document_id: str) -> DocumentState | None:
+    def get(self, session_id: str, document_id: str) -> DocumentState | None:
         with self._lock:
-            return self._documents.get(document_id)
+            return self._documents.get((session_id, document_id))
 
-    def all(self) -> list[DocumentState]:
+    def all(self, session_id: str) -> list[DocumentState]:
         with self._lock:
             # Insertion order == upload order, which is what the frontend
-            # wants for a stable document list.
-            return list(self._documents.values())
+            # wants for a stable document list. Only this session's own
+            # documents -- see class docstring.
+            return [doc for (sid, _), doc in self._documents.items() if sid == session_id]
 
-    def delete(self, document_id: str) -> bool:
+    def delete(self, session_id: str, document_id: str) -> bool:
         with self._lock:
-            return self._documents.pop(document_id, None) is not None
+            return self._documents.pop((session_id, document_id), None) is not None
 
     def clear(self) -> None:
         """Empty the store. Not used by any route -- exists for tests, so
