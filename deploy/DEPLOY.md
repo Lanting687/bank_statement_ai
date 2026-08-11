@@ -30,6 +30,21 @@ chmod 600 ~/bank_statement_ai/.env
 
 ## 3. Frontend: install and build for production
 
+Optional: set a Google Analytics Measurement ID before building. Next.js
+inlines `NEXT_PUBLIC_*` vars into the client bundle at build time, so this
+has to be in place *before* `npm run build`, not just set at runtime --
+`.env.local` is gitignored, same as the backend's `.env`:
+
+```bash
+cat > ~/bank_statement_ai/frontend/.env.local << 'EOF'
+NEXT_PUBLIC_GA_ID=G-XXXXXXXXXX
+EOF
+```
+
+Skip this step if you don't want analytics -- `app/layout.tsx` only
+renders the GoogleAnalytics component when this var is set, so it's fully
+opt-in.
+
 ```bash
 cd ~/bank_statement_ai/frontend
 npm install

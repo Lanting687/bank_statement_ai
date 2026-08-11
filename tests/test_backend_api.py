@@ -187,8 +187,8 @@ def test_extract_failure_returns_502(client, monkeypatch):
 
 # --- compute / export ---
 
-def _extracted_document(client, monkeypatch, transactions, currency="GBP"):
-    doc_id = _upload(client).json()["document_id"]
+def _extracted_document(client, monkeypatch, transactions, currency="GBP", filename="statement.pdf", pages=2):
+    doc_id = _upload(client, filename=filename, pages=pages).json()["document_id"]
     _run_fake_ocr(client, monkeypatch, doc_id)
     monkeypatch.setattr("backend.main.extract_statement_from_ocr", lambda ocr_result: (currency, transactions))
     client.post(f"/api/documents/{doc_id}/extract")
@@ -240,6 +240,126 @@ def test_compute_ignores_documents_without_extraction(client):
         json={"threshold": 0, "target_currency": "AUTO", "start_date": None, "end_date": None},
     )
     assert resp.json()["documents"] == []
+
+
+# --- multi-user / session isolation ---
+#
+# Two separate TestClient() instances behave like two separate browsers:
+# each gets its own cookie jar, so each receives a different session id
+# from backend.main.get_session_id on its first request. These tests exist
+# specifically to prove the fix for the isolation problem described in
+# docs/ARCHITECTURE.md -- before session-scoping, a single shared
+# DocumentStore meant any client's GET /api/documents returned every
+# document any other client had ever uploaded.
+
+def test_documents_are_not_visible_across_sessions():
+    client_a = TestClient(app)
+    client_b = TestClient(app)
+
+    _upload(client_a, filename="alice.pdf")
+
+    assert [d["filename"] for d in client_a.get("/api/documents").json()] == ["alice.pdf"]
+    assert client_b.get("/api/documents").json() == []
+
+
+def test_cannot_ocr_or_delete_another_sessions_document():
+    client_a = TestClient(app)
+    client_b = TestClient(app)
+
+    doc_id = _upload(client_a).json()["document_id"]
+
+    assert client_b.post(f"/api/documents/{doc_id}/ocr").status_code == 404
+    assert client_b.post(f"/api/documents/{doc_id}/extract").status_code == 404
+    assert client_b.delete(f"/api/documents/{doc_id}").status_code == 404
+
+    # untouched from client_a's point of view
+    assert len(client_a.get("/api/documents").json()) == 1
+
+
+def test_identical_file_uploaded_by_two_sessions_does_not_collide():
+    # Same bytes -> same content-hash document_id (src/pdf_review.make_document_id)
+    # -- this is exactly the scenario that used to silently overwrite state
+    # across users before session-scoping.
+    client_a = TestClient(app)
+    client_b = TestClient(app)
+    pdf_bytes = _make_pdf_bytes(2)
+
+    files = {"file": ("statement.pdf", pdf_bytes, "application/pdf")}
+    id_a = client_a.post("/api/documents", files=files).json()["document_id"]
+    id_b = client_b.post("/api/documents", files=files).json()["document_id"]
+
+    assert id_a == id_b  # same content hash, as expected
+    assert len(client_a.get("/api/documents").json()) == 1
+    assert len(client_b.get("/api/documents").json()) == 1
+
+    # deleting client_b's copy must not affect client_a's
+    assert client_b.delete(f"/api/documents/{id_b}").status_code == 204
+    assert len(client_a.get("/api/documents").json()) == 1
+    assert client_a.get("/api/documents").json()[0]["document_id"] == id_a
+
+
+def test_compute_only_returns_callers_own_documents(monkeypatch):
+    client_a = TestClient(app)
+    client_b = TestClient(app)
+
+    _extracted_document(
+        client_a, monkeypatch,
+        [Transaction(date="01 Nov 19", iso_date="2019-11-01", description="Alice's payment", amount=Decimal("-50.00"), raw_line="")],
+    )
+    _extracted_document(
+        client_b, monkeypatch,
+        [Transaction(date="01 Nov 19", iso_date="2019-11-01", description="Bob's payment", amount=Decimal("-50.00"), raw_line="")],
+    )
+
+    resp_a = client_a.post(
+        "/api/transactions/compute",
+        json={"threshold": 0, "target_currency": "AUTO", "start_date": None, "end_date": None},
+    )
+    docs_a = resp_a.json()["documents"]
+    assert len(docs_a) == 1
+    assert docs_a[0]["rows"][0]["description"] == "Alice's payment"
+
+
+def test_export_excel_cannot_reach_another_sessions_document(monkeypatch):
+    client_a = TestClient(app)
+    client_b = TestClient(app)
+
+    doc_id_a = _extracted_document(
+        client_a, monkeypatch,
+        [Transaction(date="01 Nov 19", iso_date="2019-11-01", description="Alice's payment", amount=Decimal("-50.00"), raw_line="")],
+        filename="alice.pdf", pages=2,
+    )
+    client_a.post(
+        "/api/transactions/compute",
+        json={"threshold": 0, "target_currency": "AUTO", "start_date": None, "end_date": None},
+    )
+
+    # Different page count than alice's -> different content hash -> a
+    # genuinely different document_id (make_document_id hashes bytes, not
+    # filename), so this isn't a same-id coincidence.
+    doc_id_b = _extracted_document(
+        client_b, monkeypatch,
+        [Transaction(date="01 Nov 19", iso_date="2019-11-01", description="Bob's payment", amount=Decimal("-50.00"), raw_line="")],
+        filename="bob.pdf", pages=3,
+    )
+    assert doc_id_a != doc_id_b
+    client_b.post(
+        "/api/transactions/compute",
+        json={"threshold": 0, "target_currency": "AUTO", "start_date": None, "end_date": None},
+    )
+
+    # client_b requests their own document plus client_a's guessed/known id
+    resp = client_b.post(
+        "/api/export/excel",
+        json={"selections": {doc_id_b: [0], doc_id_a: [0]}},
+    )
+    assert resp.status_code == 200
+
+    import openpyxl
+    wb = openpyxl.load_workbook(io.BytesIO(resp.content))
+    # only client_b's own sheet -- client_a's id was silently skipped, same
+    # as if it had never existed (see export_excel's `if doc is None: continue`)
+    assert wb.sheetnames == ["bob"]
 
 
 def test_export_excel_returns_xlsx_for_selected_rows(client, monkeypatch):

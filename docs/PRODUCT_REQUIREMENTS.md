@@ -151,9 +151,13 @@ Explicitly not part of this iteration:
 - Replacing docTR
 - Replacing the LLM extraction provider (already DeepSeek, not Gemini —
   out of scope to change again in this iteration)
-- Per-session/multi-user cache isolation (the server-side `DocumentStore`
-  is process-global, a known prototype-scale limitation, not a hardened
-  multi-user design — see `docs/ARCHITECTURE.md` section 4)
+- Multi-worker/horizontal-scaling support for the server-side
+  `DocumentStore` (session-scoped isolation between simultaneous browsers
+  is now in place — see `docs/ARCHITECTURE.md` section 4 — but the store
+  itself is still one process's in-memory state; running more than one
+  `uvicorn` worker or instance would need externally shared state, e.g.
+  Redis or a database, which is a deliberate later decision, not this
+  iteration's)
 
 ## 7. Acceptance Criteria
 

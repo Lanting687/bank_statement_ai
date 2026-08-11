@@ -165,12 +165,35 @@ instead of in Dash callbacks:
   update (`reviewPageById` in `app/page.tsx`) plus a `pdf.js` re-render of
   an already-parsed document — it never calls the backend at all.
 
-**Isolation between users/sessions:** none, same known limitation as
-before. `DocumentStore` is one process-global dict, not session-scoped —
-every browser tab talking to the same running `uvicorn` process shares it.
-Fine for one local user; not safe for concurrent multi-user deployment
-without further work (per-session keys, eviction, or a real cache/store) —
-see `docs/PRODUCT_REQUIREMENTS.md`, "Out of Scope."
+**Isolation between users/sessions:** `DocumentStore` is keyed by
+`(session_id, document_id)`, not `document_id` alone. `backend/main.py`'s
+`get_session_id()` dependency issues a random session id as an httpOnly
+cookie the first time a browser hits any store-touching route, and every
+route passes it straight through to `DocumentStore`. Before this, the
+store was one flat process-global dict shared by every visitor: any
+browser's `GET /api/documents` returned *every* document anyone had ever
+uploaded to that running process, and any visitor could OCR, extract,
+delete, or export any other visitor's document simply by knowing (or, more
+directly, being handed via that same unfiltered list response) its
+content-hash `document_id` — those ids were never secret or unguessable.
+Two visitors uploading byte-identical files also used to silently
+overwrite each other's state, since `document_id` alone (a content hash,
+see `src/pdf_review.make_document_id`) was the entire key. The compound
+key fixes both: distinct sessions never see each other's documents even
+for identical file content, and `store.get()`/`store.all()` scoped to a
+session id simply behave as if another session's documents don't exist.
+
+This still does not extend across multiple worker processes or
+horizontally-scaled instances — each would hold its own separate
+in-memory `DocumentStore` with nothing shared between them, so a document
+uploaded to one worker would 404 on a request that happens to land on
+another. The current deploy (`deploy/backend.service`, plain
+`uvicorn backend.main:app`, no `--workers` flag) runs a single worker, so
+this doesn't bite today, but it's a ceiling on this approach, not
+something the session cookie fixes. Scaling beyond one process would need
+externally shared state (Redis, a database) — a decision to make
+deliberately later, not a silent addition now (see `CLAUDE.md`, "Ask
+before introducing").
 
 ## 5. External Dependencies
 
@@ -207,11 +230,17 @@ Mostly unchanged in substance, re-verified against the new split:
   `localhost:3000` / `127.0.0.1:3000` by default (the Next.js dev server),
   and in normal operation isn't even exercised: `frontend/next.config.js`
   proxies `/api/*` through Next.js itself, so requests from the browser are
-  same-origin and CORS doesn't come into play at all.
+  same-origin and CORS doesn't come into play at all. `allow_credentials=True`
+  is set so the session cookie (see section 4) still works in the
+  cross-origin fallback case this middleware exists for.
+- **Session cookie is httpOnly.** The `bsai_session` cookie `get_session_id()`
+  issues (section 4) can't be read or forged by client-side JS — it exists
+  purely so the backend can tell visitors apart, carries no personal data,
+  and isn't sent anywhere except this app's own backend.
 - **API keys stay in environment variables** (`.env`, loaded via
   `python-dotenv` in `backend/main.py`, gitignored) — unchanged.
-- See section 4 for the known multi-user isolation limitation, unchanged
-  from before.
+- See section 4 for how multi-user isolation now works and its remaining
+  (single-worker) limit.
 
 ## 7. Error Handling
 

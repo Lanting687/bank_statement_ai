@@ -17,3 +17,6 @@ python-multipart>=0.0.9
 # fastapi.testclient.TestClient is built on httpx, not requests -- needed
 # to run tests/test_backend_api.py, not by the running app itself.
 httpx>=0.27
+# Test runner -- not used by the running app, only `pytest tests/ -q`
+# (see CLAUDE.md section 9).
+pytest>=8.0
